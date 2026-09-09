@@ -3,64 +3,122 @@ export const AI_EXERCISES = {
   squats: {
     id: 'squats',
     name: 'Dorm Bodyweight Squats',
+    shortName: 'Squats',
     targetMuscles: 'Quadriceps, Glutes, Hamstrings, Core',
     level: 'Beginner',
-    calPerRep: 0.32,
-    downAngle: 90, // knee angle when squat is reached
-    upAngle: 160,  // standing straight
+    defaultTargetReps: 15,
+    calPerRep: 0.35,
+    metricUnit: 'reps',
+    downAngle: 90, // knee angle when squat depth is reached (< 90°)
+    upAngle: 160,  // standing straight (> 160°)
     keyJoints: ['hip', 'knee', 'ankle'],
     instructions: [
-      'Stand with feet shoulder-width apart, toes pointing slightly outward.',
-      'Lower hips back and down as if sitting in an invisible chair.',
-      'Keep your chest high and back straight; do not let knees cave inward.',
-      'Descend until thighs are parallel to the floor, then drive through heels to stand.'
+      'Stand facing camera, feet shoulder-width apart, toes pointing slightly out.',
+      'Lower hips back and down until thighs are parallel to the floor (< 90° knee angle).',
+      'Keep your chest high, back straight, and prevent knees from caving inward.',
+      'Drive up through your heels to return to standing position (> 160°).'
     ],
     formCues: {
-      depthError: 'Lower your hips parallel to the floor!',
+      depthError: 'Go deeper below 90°!',
       backError: 'Keep chest upright, do not collapse forward!',
+      kneeCaveError: 'Push knees outward over toes!',
       successCue: 'Great squat depth!'
     }
   },
   pushups: {
     id: 'pushups',
     name: 'Hostel Bed / Floor Push-ups',
-    targetMuscles: 'Chest, Shoulders, Triceps, Core',
+    shortName: 'Push-ups',
+    targetMuscles: 'Pectorals, Triceps, Anterior Deltoids, Core',
     level: 'Intermediate',
+    defaultTargetReps: 12,
     calPerRep: 0.45,
-    downAngle: 85,  // elbow angle in down position
-    upAngle: 155,   // elbow lockout
-    keyJoints: ['shoulder', 'elbow', 'wrist'],
+    metricUnit: 'reps',
+    downAngle: 88,  // elbow angle in bottom position (< 90°)
+    upAngle: 160,   // elbow extension (> 160°)
+    keyJoints: ['shoulder', 'elbow', 'wrist', 'hip', 'ankle'],
     instructions: [
-      'Place hands slightly wider than shoulder-width apart.',
-      'Form a straight line from crown of head to heels, engaging your core.',
-      'Lower your chest until it hovers 2 inches above the ground/bed.',
-      'Push firmly back to start without sagging your lower back.'
+      'Place hands slightly wider than shoulder-width on floor or edge of dorm bed.',
+      'Lock in a rigid straight line from shoulders through hips to ankles (< 15° deviation).',
+      'Lower your chest until elbows bend beyond 90 degrees.',
+      'Push firmly back up to full lockout without sagging your lower back.'
     ],
     formCues: {
-      depthError: 'Lower your chest closer to the floor!',
-      backError: 'Tighten core, avoid sagging hips!',
+      depthError: 'Lower chest deeper below 90°!',
+      backError: 'Keep hips aligned, avoid sagging!',
       successCue: 'Strong push-up rep!'
     }
   },
   jumpingJacks: {
     id: 'jumpingJacks',
-    name: 'Cardio Desk Jumping Jacks',
+    name: 'Cardio Jumping Jacks',
+    shortName: 'Jumping Jacks',
     targetMuscles: 'Calves, Deltoids, Cardiovascular Endurance',
     level: 'All Levels',
+    defaultTargetReps: 25,
     calPerRep: 0.20,
-    downAngle: 40,  // arms by side
-    upAngle: 130,   // arms overhead
-    keyJoints: ['hip', 'shoulder', 'elbow'],
+    metricUnit: 'reps',
+    downAngle: 45,  // arms by sides (< 45°)
+    upAngle: 135,   // arms overhead (> 135°)
+    keyJoints: ['hip', 'shoulder', 'wrist', 'ankle'],
     instructions: [
-      'Begin standing tall with arms resting at your sides.',
-      'Jump feet outward while raising arms overhead until hands nearly touch.',
-      'Jump back to starting position landing softly on the balls of your feet.',
-      'Keep a steady athletic rhythm.'
+      'Start standing tall with hands at your sides and feet together.',
+      'Jump feet outward wider than shoulder width while swinging arms overhead.',
+      'Clap or bring hands together above head (> 135° arm abduction).',
+      'Jump back to starting position landing softly on the balls of your feet.'
     ],
     formCues: {
-      depthError: 'Raise your hands fully above your head!',
-      backError: 'Land softly on balls of your feet!',
+      depthError: 'Raise arms fully overhead!',
+      backError: 'Land softly on balls of feet!',
       successCue: 'Great tempo, keep bouncing!'
+    }
+  },
+  lunges: {
+    id: 'lunges',
+    name: 'Alternating Dorm Lunges',
+    shortName: 'Lunges',
+    targetMuscles: 'Quadriceps, Glutes, Hamstrings, Calves',
+    level: 'Beginner - Int.',
+    defaultTargetReps: 16,
+    calPerRep: 0.38,
+    metricUnit: 'reps',
+    downAngle: 92,  // front knee angle in lunge bottom (< 95°)
+    upAngle: 155,   // standing straight (> 155°)
+    keyJoints: ['hip', 'knee', 'ankle'],
+    instructions: [
+      'Stand tall, then take a controlled step forward with your lead leg.',
+      'Lower your hips until your front knee bends to 90° and back knee hovers above floor.',
+      'Keep your torso perpendicular to the floor; do not lean forward over knee.',
+      'Push firmly off front heel to return to standing position.'
+    ],
+    formCues: {
+      depthError: 'Lower front knee to 90°!',
+      backError: 'Keep torso upright, do not lean forward!',
+      successCue: 'Clean lunge, good balance!'
+    }
+  },
+  plank: {
+    id: 'plank',
+    name: 'Desk / Floor Isometric Plank',
+    shortName: 'Plank Hold',
+    targetMuscles: 'Rectus Abdominis, Transverse Abdominis, Glutes, Shoulders',
+    level: 'All Levels',
+    defaultTargetReps: 30, // seconds
+    calPerRep: 0.15, // kcal per second of hold
+    metricUnit: 'seconds',
+    downAngle: 15,  // max 15° deviation from straight line (Shoulder-Hip-Ankle)
+    upAngle: 15,
+    keyJoints: ['shoulder', 'hip', 'ankle'],
+    instructions: [
+      'Plant forearms or hands on the floor or edge of study desk beneath shoulders.',
+      'Form a strict straight line from shoulders through hips down to ankles.',
+      'Maintain spine straightness: deviation between shoulder-hip-ankle must stay < 15°.',
+      'Engage glutes and pull navel toward spine; hold steady and breathe evenly.'
+    ],
+    formCues: {
+      depthError: 'Hips are sagging! Lift hips up!',
+      backError: 'Hips are too high! Flatten into straight plank!',
+      successCue: 'Solid plank alignment!'
     }
   }
 };

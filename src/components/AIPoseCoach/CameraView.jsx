@@ -7,36 +7,72 @@ import {
   AlertCircle,
   Loader2,
   Sliders,
-  CheckCircle2
+  UserCheck,
+  UserX
 } from 'lucide-react';
+import {
+  LANDMARK_INDEX,
+  evaluateExerciseLandmarks
+} from './AngleMath';
+import { coachVoice } from '../../utils/voiceCoach';
 
 /**
- * CameraView Component
+ * CameraView Component with Real-Time MediaPipe Pose Detection
  * View States: 'idle' | 'requesting' | 'active' | 'simulating' | 'error'
  */
 export const CameraView = ({
-  exerciseKey,
-  onAngleUpdate,
-  currentAngle = 160,
-  formCue,
+  exerciseKey = 'squats',
+  onTelemetryUpdate,
   currentStage = 'up',
-  isTracking,
   setIsTracking
 }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
+  const poseRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const isRunningRef = useRef(false);
 
   // Viewport state machine: 'idle' | 'requesting' | 'active' | 'simulating' | 'error'
   const [viewState, setViewState] = useState('idle');
   const [errorMessage, setErrorMessage] = useState(null);
+  const [isInFrame, setIsInFrame] = useState(true);
+  const [activeFormFaults, setActiveFormFaults] = useState([]);
+  const [liveAngle, setLiveAngle] = useState(160);
 
   // Simulation state
   const [simulatedAngle, setSimulatedAngle] = useState(160);
   const [simDirection, setSimDirection] = useState(-1);
 
-  // Stop camera helper
+  // Keep latest props in refs for animation loop
+  const exerciseKeyRef = useRef(exerciseKey);
+  const currentStageRef = useRef(currentStage);
+
+  useEffect(() => {
+    exerciseKeyRef.current = exerciseKey;
+    if (exerciseKey === 'jumpingJacks') {
+      setSimulatedAngle(45);
+      setSimDirection(1);
+    } else if (exerciseKey === 'plank') {
+      setSimulatedAngle(8);
+      setSimDirection(1);
+    } else {
+      setSimulatedAngle(160);
+      setSimDirection(-1);
+    }
+  }, [exerciseKey]);
+
+  useEffect(() => {
+    currentStageRef.current = currentStage;
+  }, [currentStage]);
+
+  // Clean stop of camera & pose detection
   const stopCamera = useCallback(() => {
+    isRunningRef.current = false;
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -44,12 +80,146 @@ export const CameraView = ({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    if (poseRef.current) {
+      try {
+        poseRef.current.close();
+      } catch (e) {
+        // ignore close error
+      }
+      poseRef.current = null;
+    }
+
     setViewState('idle');
     setErrorMessage(null);
+    setIsInFrame(true);
+    setActiveFormFaults([]);
     if (setIsTracking) setIsTracking(false);
   }, [setIsTracking]);
 
-  // Request WebRTC Camera Stream
+  // Render dynamic skeleton, joints, and floating form fault tooltips
+  const drawPoseFrame = useCallback((ctx, width, height, landmarks, formFaults, isGoodForm, inFrame) => {
+    ctx.clearRect(0, 0, width, height);
+
+    if (!landmarks || !inFrame) {
+      return;
+    }
+
+    // Colors
+    const COLOR_GOOD = '#10b981'; // Neon Emerald Green
+    const COLOR_FAULT = '#ef4444'; // Crimson / Amber Red
+    const COLOR_CYAN = '#06b6d4'; // Cyan highlights
+
+    const faultyJointNames = new Set(formFaults.map((f) => f.joint));
+
+    // Skeleton connections definition
+    const SKELETON_CONNECTIONS = [
+      // Upper Body
+      { from: LANDMARK_INDEX.LEFT_SHOULDER, to: LANDMARK_INDEX.RIGHT_SHOULDER, jointGroup: 'shoulder' },
+      { from: LANDMARK_INDEX.LEFT_SHOULDER, to: LANDMARK_INDEX.LEFT_ELBOW, jointGroup: 'elbow' },
+      { from: LANDMARK_INDEX.LEFT_ELBOW, to: LANDMARK_INDEX.LEFT_WRIST, jointGroup: 'elbow' },
+      { from: LANDMARK_INDEX.RIGHT_SHOULDER, to: LANDMARK_INDEX.RIGHT_ELBOW, jointGroup: 'elbow' },
+      { from: LANDMARK_INDEX.RIGHT_ELBOW, to: LANDMARK_INDEX.RIGHT_WRIST, jointGroup: 'elbow' },
+      // Torso
+      { from: LANDMARK_INDEX.LEFT_SHOULDER, to: LANDMARK_INDEX.LEFT_HIP, jointGroup: 'hip' },
+      { from: LANDMARK_INDEX.RIGHT_SHOULDER, to: LANDMARK_INDEX.RIGHT_HIP, jointGroup: 'hip' },
+      { from: LANDMARK_INDEX.LEFT_HIP, to: LANDMARK_INDEX.RIGHT_HIP, jointGroup: 'hip' },
+      // Lower Body
+      { from: LANDMARK_INDEX.LEFT_HIP, to: LANDMARK_INDEX.LEFT_KNEE, jointGroup: 'knee' },
+      { from: LANDMARK_INDEX.LEFT_KNEE, to: LANDMARK_INDEX.LEFT_ANKLE, jointGroup: 'knee' },
+      { from: LANDMARK_INDEX.RIGHT_HIP, to: LANDMARK_INDEX.RIGHT_KNEE, jointGroup: 'knee' },
+      { from: LANDMARK_INDEX.RIGHT_KNEE, to: LANDMARK_INDEX.RIGHT_ANKLE, jointGroup: 'knee' }
+    ];
+
+    // 1. Draw Connecting Bones
+    SKELETON_CONNECTIONS.forEach(({ from, to, jointGroup }) => {
+      const ptA = landmarks[from];
+      const ptB = landmarks[to];
+      if (!ptA || !ptB) return;
+
+      const isFaulty = faultyJointNames.has(jointGroup);
+      const strokeColor = isFaulty ? COLOR_FAULT : COLOR_GOOD;
+
+      ctx.beginPath();
+      // Mirror x coordinates to match mirrored video (-scale-x-100)
+      ctx.moveTo((1 - ptA.x) * width, ptA.y * height);
+      ctx.lineTo((1 - ptB.x) * width, ptB.y * height);
+      ctx.lineWidth = isFaulty ? 5 : 4;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    });
+
+    // 2. Draw Landmark Joint Nodes
+    const TRACKED_JOINTS = [
+      { idx: LANDMARK_INDEX.LEFT_SHOULDER, name: 'shoulder' },
+      { idx: LANDMARK_INDEX.RIGHT_SHOULDER, name: 'shoulder' },
+      { idx: LANDMARK_INDEX.LEFT_ELBOW, name: 'elbow' },
+      { idx: LANDMARK_INDEX.RIGHT_ELBOW, name: 'elbow' },
+      { idx: LANDMARK_INDEX.LEFT_WRIST, name: 'wrist' },
+      { idx: LANDMARK_INDEX.RIGHT_WRIST, name: 'wrist' },
+      { idx: LANDMARK_INDEX.LEFT_HIP, name: 'hip' },
+      { idx: LANDMARK_INDEX.RIGHT_HIP, name: 'hip' },
+      { idx: LANDMARK_INDEX.LEFT_KNEE, name: 'knee' },
+      { idx: LANDMARK_INDEX.RIGHT_KNEE, name: 'knee' },
+      { idx: LANDMARK_INDEX.LEFT_ANKLE, name: 'ankle' },
+      { idx: LANDMARK_INDEX.RIGHT_ANKLE, name: 'ankle' }
+    ];
+
+    TRACKED_JOINTS.forEach(({ idx, name }) => {
+      const pt = landmarks[idx];
+      if (!pt) return;
+
+      const isFaulty = faultyJointNames.has(name);
+      const screenX = (1 - pt.x) * width;
+      const screenY = pt.y * height;
+
+      // Outer glow circle
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, isFaulty ? 9 : 7, 0, Math.PI * 2);
+      ctx.fillStyle = isFaulty ? COLOR_FAULT : COLOR_GOOD;
+      ctx.fill();
+
+      // Inner white dot
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+    });
+
+    // 3. Float Contextual Form Correction Tooltips Directly Next to Offending Joints
+    formFaults.forEach((fault) => {
+      const screenX = (1 - fault.x) * width;
+      const screenY = fault.y * height;
+
+      ctx.save();
+      ctx.font = 'bold 12px Inter, sans-serif';
+      const text = `⚠️ ${fault.message}`;
+      const textMetrics = ctx.measureText(text);
+      const padding = 7;
+      const boxWidth = textMetrics.width + padding * 2;
+      const boxHeight = 26;
+
+      // Positioning tooltip safely within canvas bounds
+      const boxX = Math.min(Math.max(screenX + 15, 10), width - boxWidth - 10);
+      const boxY = Math.min(Math.max(screenY - 14, 25), height - boxHeight - 10);
+
+      // Background rounded pill
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.92)'; // Crimson red
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Text label
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, boxX + padding, boxY + 17);
+      ctx.restore();
+    });
+  }, []);
+
+  // WebRTC Start Camera with MediaPipe Pose Hookup
   const startCamera = async () => {
     setErrorMessage(null);
     setViewState('requesting');
@@ -69,17 +239,108 @@ export const CameraView = ({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        setViewState('active');
-        if (setIsTracking) setIsTracking(true);
       }
+
+      // Initialize MediaPipe Pose instance
+      let PoseConstructor = window.Pose;
+      if (!PoseConstructor) {
+        try {
+          const mp = await import('@mediapipe/pose');
+          PoseConstructor = mp.Pose || mp.default?.Pose;
+        } catch (e) {
+          console.warn("Could not import @mediapipe/pose statically, relying on window.Pose", e);
+        }
+      }
+
+      if (PoseConstructor) {
+        const pose = new PoseConstructor({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+
+        pose.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          smoothSegmentation: false,
+          minDetectionConfidence: 0.55,
+          minTrackingConfidence: 0.55
+        });
+
+        pose.onResults((results) => {
+          if (!isRunningRef.current) return;
+
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const ctx = canvas.getContext('2d');
+          const width = canvas.width;
+          const height = canvas.height;
+
+          if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+            const evalResult = evaluateExerciseLandmarks(
+              exerciseKeyRef.current,
+              results.poseLandmarks,
+              currentStageRef.current
+            );
+
+            setIsInFrame(evalResult.inFrame);
+            setActiveFormFaults(evalResult.formFaults || []);
+            setLiveAngle(evalResult.angle || 160);
+
+            // Draw dynamic skeleton with color coding & tooltips
+            drawPoseFrame(
+              ctx,
+              width,
+              height,
+              results.poseLandmarks,
+              evalResult.formFaults || [],
+              evalResult.isGoodForm,
+              evalResult.inFrame
+            );
+
+            // Notify parent of telemetry
+            if (onTelemetryUpdate) {
+              onTelemetryUpdate(evalResult);
+            }
+          } else {
+            setIsInFrame(false);
+            ctx.clearRect(0, 0, width, height);
+          }
+        });
+
+        poseRef.current = pose;
+      }
+
+      isRunningRef.current = true;
+      setViewState('active');
+      if (setIsTracking) setIsTracking(true);
+
+      // Frame pump loop
+      const pumpFrame = async () => {
+        if (!isRunningRef.current) return;
+
+        if (
+          videoRef.current &&
+          videoRef.current.readyState >= 2 &&
+          poseRef.current
+        ) {
+          try {
+            await poseRef.current.send({ image: videoRef.current });
+          } catch (e) {
+            // Transient frame drop
+          }
+        }
+        animFrameRef.current = requestAnimationFrame(pumpFrame);
+      };
+
+      pumpFrame();
     } catch (err) {
       console.warn("Webcam access error:", err);
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         setErrorMessage('Camera access blocked. Please allow permissions in your browser bar.');
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setErrorMessage('No webcam detected on this device. You can test with the Interactive Simulation.');
+        setErrorMessage('No webcam detected on this device. You can test with Interactive Simulation.');
       } else {
-        setErrorMessage(err.message || 'Unable to access camera. Please check your camera settings.');
+        setErrorMessage(err.message || 'Unable to access camera.');
       }
       setViewState('error');
       if (setIsTracking) setIsTracking(false);
@@ -90,8 +351,7 @@ export const CameraView = ({
   const startSimulation = () => {
     stopCamera();
     setViewState('simulating');
-    setSimulatedAngle(160);
-    setSimDirection(-1);
+    setIsInFrame(true);
     if (setIsTracking) setIsTracking(true);
   };
 
@@ -101,152 +361,113 @@ export const CameraView = ({
     if (setIsTracking) setIsTracking(false);
   };
 
-  // Simulation Runner Loop
+  // Synthetic Landmark Generator for Infallible Simulation Mode
   useEffect(() => {
     let interval;
     if (viewState === 'simulating') {
       interval = setInterval(() => {
         setSimulatedAngle((prev) => {
-          let next;
-          if (exerciseKey === 'squats') {
+          let next = prev;
+          let newDirection = simDirection;
+
+          if (exerciseKey === 'squats' || exerciseKey === 'lunges') {
             next = prev + simDirection * 5;
-            if (next <= 85) setSimDirection(1);
-            else if (next >= 165) setSimDirection(-1);
+            if (next <= 85) newDirection = 1;
+            else if (next >= 165) newDirection = -1;
           } else if (exerciseKey === 'pushups') {
             next = prev + simDirection * 6;
-            if (next <= 80) setSimDirection(1);
-            else if (next >= 160) setSimDirection(-1);
-          } else {
-            // jumping jacks
+            if (next <= 80) newDirection = 1;
+            else if (next >= 160) newDirection = -1;
+          } else if (exerciseKey === 'jumpingJacks') {
             next = prev + simDirection * 7;
-            if (next >= 140) setSimDirection(-1);
-            else if (next <= 35) setSimDirection(1);
+            if (next >= 140) newDirection = -1;
+            else if (next <= 40) newDirection = 1;
+          } else {
+            // plank
+            next = prev + simDirection * 2;
+            if (next >= 22) newDirection = -1;
+            else if (next <= 5) newDirection = 1;
           }
-          if (onAngleUpdate) onAngleUpdate(next);
+
+          setSimDirection(newDirection);
+          setLiveAngle(next);
+
+          // Generate synthetic 33-landmark skeleton mirroring real anatomy
+          const canvas = canvasRef.current;
+          if (canvas) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            const bendNorm = (180 - next) / 100;
+            const syntheticLandmarks = [];
+            for (let i = 0; i <= 32; i++) {
+              syntheticLandmarks.push({ x: 0.5, y: 0.5, visibility: 0.95 });
+            }
+
+            // Hip & Knee geometry
+            syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.42, y: 0.32, visibility: 0.95 };
+            syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.58, y: 0.32, visibility: 0.95 };
+
+            if (exerciseKey === 'jumpingJacks') {
+              const armY = 0.32 - (next / 180) * 0.25;
+              const armXLeft = 0.42 - (next / 180) * 0.15;
+              const armXRight = 0.58 + (next / 180) * 0.15;
+              syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: armXLeft, y: armY + 0.1, visibility: 0.95 };
+              syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: armXRight, y: armY + 0.1, visibility: 0.95 };
+              syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: armXLeft - 0.05, y: armY, visibility: 0.95 };
+              syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: armXRight + 0.05, y: armY, visibility: 0.95 };
+            } else {
+              syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.38, y: 0.45, visibility: 0.95 };
+              syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.62, y: 0.45, visibility: 0.95 };
+              syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.36, y: 0.56, visibility: 0.95 };
+              syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.64, y: 0.56, visibility: 0.95 };
+            }
+
+            syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.44, y: 0.55 + bendNorm * 0.08, visibility: 0.95 };
+            syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.56, y: 0.55 + bendNorm * 0.08, visibility: 0.95 };
+
+            syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.43 - bendNorm * 0.04, y: 0.72 + bendNorm * 0.03, visibility: 0.95 };
+            syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.57 + bendNorm * 0.04, y: 0.72 + bendNorm * 0.03, visibility: 0.95 };
+
+            syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.43, y: 0.90, visibility: 0.95 };
+            syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.57, y: 0.90, visibility: 0.95 };
+
+            const evalResult = evaluateExerciseLandmarks(
+              exerciseKeyRef.current,
+              syntheticLandmarks,
+              currentStageRef.current
+            );
+
+            setActiveFormFaults(evalResult.formFaults || []);
+            drawPoseFrame(
+              ctx,
+              width,
+              height,
+              syntheticLandmarks,
+              evalResult.formFaults || [],
+              evalResult.isGoodForm,
+              true
+            );
+
+            if (onTelemetryUpdate) {
+              onTelemetryUpdate(evalResult);
+            }
+          }
+
           return next;
         });
       }, 70);
     }
     return () => clearInterval(interval);
-  }, [viewState, simDirection, exerciseKey, onAngleUpdate]);
+  }, [viewState, simDirection, exerciseKey, onTelemetryUpdate, drawPoseFrame]);
 
-  // Clean up streams on unmount
+  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
+      stopCamera();
     };
-  }, []);
-
-  // Canvas drawing: ONLY active during 'active' or 'simulating'
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-
-    ctx.clearRect(0, 0, width, height);
-
-    // If NOT active and NOT simulating, leave canvas completely clear!
-    if (viewState !== 'active' && viewState !== 'simulating') {
-      return;
-    }
-
-    const angleToDisplay = viewState === 'simulating' ? simulatedAngle : currentAngle;
-
-    // Responsive skeletal kinematics overlay
-    const centerX = width / 2;
-    const hipY = height * 0.52;
-    const kneeBend = Math.min(Math.max((180 - angleToDisplay) * 0.6, 0), 65);
-
-    // Head
-    ctx.beginPath();
-    ctx.arc(centerX, height * 0.22 + kneeBend * 0.4, 22, 0, Math.PI * 2);
-    ctx.fillStyle = '#06b6d4';
-    ctx.fill();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#22c55e';
-    ctx.stroke();
-
-    // Spine
-    ctx.beginPath();
-    ctx.moveTo(centerX, height * 0.25 + kneeBend * 0.4);
-    ctx.lineTo(centerX, hipY + kneeBend * 0.6);
-    ctx.strokeStyle = '#22c55e';
-    ctx.lineWidth = 6;
-    ctx.stroke();
-
-    // Hips
-    const hipLeftX = centerX - 35;
-    const hipRightX = centerX + 35;
-    const currentHipY = hipY + kneeBend * 0.6;
-
-    ctx.beginPath();
-    ctx.moveTo(hipLeftX, currentHipY);
-    ctx.lineTo(hipRightX, currentHipY);
-    ctx.stroke();
-
-    // Left Leg
-    const kneeLeftX = hipLeftX - 15 - kneeBend * 0.2;
-    const kneeLeftY = currentHipY + 55;
-    const ankleLeftX = hipLeftX - 10;
-    const ankleLeftY = height * 0.88;
-
-    ctx.beginPath();
-    ctx.moveTo(hipLeftX, currentHipY);
-    ctx.lineTo(kneeLeftX, kneeLeftY);
-    ctx.lineTo(ankleLeftX, ankleLeftY);
-    ctx.strokeStyle = angleToDisplay < 100 ? '#22c55e' : '#06b6d4';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-
-    // Right Leg
-    const kneeRightX = hipRightX + 15 + kneeBend * 0.2;
-    const kneeRightY = currentHipY + 55;
-    const ankleRightX = hipRightX + 10;
-    const ankleRightY = height * 0.88;
-
-    ctx.beginPath();
-    ctx.moveTo(hipRightX, currentHipY);
-    ctx.lineTo(kneeRightX, kneeRightY);
-    ctx.lineTo(ankleRightX, ankleRightY);
-    ctx.stroke();
-
-    // Joint landmark nodes
-    const joints = [
-      [centerX, height * 0.22 + kneeBend * 0.4],
-      [hipLeftX, currentHipY],
-      [hipRightX, currentHipY],
-      [kneeLeftX, kneeLeftY],
-      [kneeRightX, kneeRightY],
-      [ankleLeftX, ankleLeftY],
-      [ankleRightX, ankleRightY]
-    ];
-
-    joints.forEach(([x, y]) => {
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fillStyle = '#22c55e';
-      ctx.fill();
-    });
-
-    // Angle Display badge near knee
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = angleToDisplay < 100 ? '#22c55e' : '#06b6d4';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(kneeRightX + 15, kneeRightY - 20, 95, 38, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    ctx.fillText(`${angleToDisplay}°`, kneeRightX + 26, kneeRightY + 4);
-  }, [currentAngle, simulatedAngle, viewState]);
-
-  const activeAngleValue = viewState === 'simulating' ? simulatedAngle : currentAngle;
+  }, [stopCamera]);
 
   return (
     <div
@@ -258,7 +479,7 @@ export const CameraView = ({
         border: '1px solid rgba(255, 255, 255, 0.08)'
       }}
     >
-      {/* Top Status Bar: Clean HUD with single status badge and discreet controls */}
+      {/* Top Status Bar: Clean HUD badge & stop control */}
       <div className="p-4 flex justify-between items-center z-20 pointer-events-none">
         {/* Status Badge */}
         <div className="pointer-events-auto flex items-center space-x-2">
@@ -277,16 +498,25 @@ export const CameraView = ({
           )}
 
           {viewState === 'active' && (
-            <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold tracking-wide shadow-[0_0_12px_rgba(34,197,94,0.25)]">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>LIVE TRACKING</span>
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold tracking-wide shadow-[0_0_12px_rgba(34,197,94,0.25)]">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>LIVE MEDIA-PIPE AI</span>
+              </div>
+
+              {!isInFrame && (
+                <div className="flex items-center space-x-1 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-bold animate-pulse">
+                  <UserX className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Step back into frame</span>
+                </div>
+              )}
             </div>
           )}
 
           {viewState === 'simulating' && (
             <div className="flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-bold tracking-wide shadow-[0_0_12px_rgba(168,85,247,0.25)]">
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-              <span>SIMULATING</span>
+              <span>SIMULATING POSE</span>
             </div>
           )}
 
@@ -298,7 +528,7 @@ export const CameraView = ({
           )}
         </div>
 
-        {/* Top-Right Action Controls (Only shown when active or simulating) */}
+        {/* Top-Right Action Controls */}
         <div className="pointer-events-auto flex items-center space-x-2">
           {viewState === 'active' && (
             <button
@@ -334,7 +564,7 @@ export const CameraView = ({
           muted
         />
 
-        {/* Canvas overlay for skeleton & vector angles */}
+        {/* Canvas overlay for skeleton & dynamic vector angles */}
         <canvas
           ref={canvasRef}
           width={640}
@@ -344,10 +574,18 @@ export const CameraView = ({
           }`}
         />
 
+        {/* Floating Out-Of-Frame Warning Badge on center if needed */}
+        {viewState === 'active' && !isInFrame && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-slate-900/90 border border-amber-500/60 rounded-full px-4 py-1.5 text-xs font-bold text-amber-300 shadow-xl backdrop-blur-md flex items-center space-x-2 animate-pulse">
+            <UserX className="w-4 h-4 text-amber-400" />
+            <span>Step back so your full body is in frame</span>
+          </div>
+        )}
+
         {/* STATE: 'idle' — Sleek Minimalist Empty-State */}
         {viewState === 'idle' && (
           <div className="relative z-0 text-center px-6 max-w-md mx-auto flex flex-col items-center">
-            {/* Centered blurred camera aperture icon with subtle glowing neon cyan outline */}
+            {/* Centered aperture with cyan outline */}
             <div className="relative mb-5 flex items-center justify-center">
               <div className="absolute inset-0 rounded-3xl bg-cyan-500/20 blur-xl animate-pulse" />
               <div className="relative w-20 h-20 rounded-3xl bg-slate-900/80 border border-cyan-400/40 flex items-center justify-center text-cyan-400 shadow-[0_0_25px_rgba(6,182,212,0.25)] backdrop-blur-xl">
@@ -424,17 +662,9 @@ export const CameraView = ({
             </div>
           </div>
         )}
-
-        {/* Live Form Guidance Floating Banner (Only when active/simulating and cue is present) */}
-        {(viewState === 'active' || viewState === 'simulating') && formCue && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-emerald-500 text-slate-950 px-4 py-1.5 rounded-full font-bold text-xs shadow-xl shadow-emerald-500/30 flex items-center space-x-2 animate-bounce">
-            <span>✨</span>
-            <span>{formCue}</span>
-          </div>
-        )}
       </div>
 
-      {/* Dedicated Bottom HUD Bar: Only visible when state is 'active' or 'simulating' */}
+      {/* Dedicated Bottom HUD Bar: Only visible when active or simulating */}
       {(viewState === 'active' || viewState === 'simulating') && (
         <div className="p-3.5 bg-slate-900/80 border-t border-slate-800/80 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
           <div className="flex items-center space-x-2">
@@ -447,18 +677,18 @@ export const CameraView = ({
           <div className="flex items-center space-x-3 w-full sm:w-1/2">
             <input
               type="range"
-              min="60"
+              min="0"
               max="180"
-              value={activeAngleValue}
+              value={liveAngle}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 setSimulatedAngle(val);
-                if (onAngleUpdate) onAngleUpdate(val);
+                setLiveAngle(val);
               }}
               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-400"
             />
             <span className="font-mono text-emerald-400 font-bold min-w-[38px] text-right">
-              {activeAngleValue}°
+              {liveAngle}°
             </span>
           </div>
 

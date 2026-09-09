@@ -3,7 +3,7 @@ class VoiceCoach {
   constructor() {
     this.enabled = true;
     this.lastSpoken = 0;
-    this.throttleMs = 2500; // avoid spamming voice cues
+    this.throttleMs = 4000; // brief throttling (max once per 4 seconds)
   }
 
   toggle(enabled) {
@@ -14,7 +14,7 @@ class VoiceCoach {
   }
 
   speak(text, priority = false) {
-    if (!this.enabled || !('speechSynthesis' in window)) return;
+    if (!this.enabled || !('speechSynthesis' in window) || !text) return;
 
     const now = Date.now();
     if (!priority && now - this.lastSpoken < this.throttleMs) {
@@ -22,11 +22,11 @@ class VoiceCoach {
     }
 
     try {
-      window.speechSynthesis.cancel(); // clear previous speech
+      window.speechSynthesis.cancel(); // cancel previous queued utterance
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05; // natural brisk athletic coach pace
+      utterance.rate = 1.05; // brisk athletic coach pace
       utterance.pitch = 1.0;
-      utterance.volume = 0.9;
+      utterance.volume = 0.95;
 
       this.lastSpoken = now;
       window.speechSynthesis.speak(utterance);
@@ -35,25 +35,30 @@ class VoiceCoach {
     }
   }
 
-  speakRep(count) {
-    this.speak(`${count}!`, true);
+  speakRep(count, unit = 'rep') {
+    if (unit === 'seconds') {
+      this.speak(`${count} seconds!`, true);
+    } else {
+      this.speak(`${count}!`, true);
+    }
+  }
+
+  speakFormCue(cue) {
+    // Throttled form cue
+    this.speak(cue, false);
   }
 
   speakEncouragement() {
     const encouragements = [
-      "Great depth!",
+      "Good depth!",
       "Chest up, perfect form!",
-      "You got this, keep moving!",
-      "Power through!",
-      "Looking strong!",
-      "Stay tight, great pace!"
+      "Looking strong, keep moving!",
+      "Keep your back straight!",
+      "Stay tight, great pace!",
+      "Power through!"
     ];
     const pick = encouragements[Math.floor(Math.random() * encouragements.length)];
     this.speak(pick, false);
-  }
-
-  speakCorrection(cue) {
-    this.speak(cue, true);
   }
 }
 
