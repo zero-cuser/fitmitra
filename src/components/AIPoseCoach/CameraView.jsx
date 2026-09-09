@@ -224,6 +224,14 @@ export const CameraView = ({
     setErrorMessage(null);
     setViewState('requesting');
 
+    // Guard against environments without mediaDevices support (e.g. non-secure origins)
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setErrorMessage('Webcam access is not supported in this browser environment or requires HTTPS/localhost.');
+      setViewState('error');
+      if (setIsTracking) setIsTracking(false);
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -238,33 +246,38 @@ export const CameraView = ({
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      // Initialize MediaPipe Pose instance
-      let PoseConstructor = window.Pose;
-      if (!PoseConstructor) {
         try {
-          const mp = await import('@mediapipe/pose');
-          PoseConstructor = mp.Pose || mp.default?.Pose;
-        } catch (e) {
-          console.warn("Could not import @mediapipe/pose statically, relying on window.Pose", e);
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("Video play interrupted:", playErr);
         }
       }
 
-      if (PoseConstructor) {
-        const pose = new PoseConstructor({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-        });
+      // Initialize MediaPipe Pose instance with isolated try-catch
+      try {
+        let PoseConstructor = window.Pose;
+        if (!PoseConstructor) {
+          try {
+            const mp = await import('@mediapipe/pose');
+            PoseConstructor = mp.Pose || mp.default?.Pose;
+          } catch (e) {
+            console.warn("Could not import @mediapipe/pose statically, relying on window.Pose", e);
+          }
+        }
 
-        pose.setOptions({
-          modelComplexity: 1,
-          smoothLandmarks: true,
-          enableSegmentation: false,
-          smoothSegmentation: false,
-          minDetectionConfidence: 0.55,
-          minTrackingConfidence: 0.55
-        });
+        if (PoseConstructor) {
+          const pose = new PoseConstructor({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+          });
+
+          pose.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            smoothSegmentation: false,
+            minDetectionConfidence: 0.55,
+            minTrackingConfidence: 0.55
+          });
 
         pose.onResults((results) => {
           if (!isRunningRef.current) return;
@@ -309,6 +322,9 @@ export const CameraView = ({
 
         poseRef.current = pose;
       }
+    } catch (poseInitError) {
+      console.warn("MediaPipe Pose initialization warning (camera will stream with visual guides):", poseInitError);
+    }
 
       isRunningRef.current = true;
       setViewState('active');

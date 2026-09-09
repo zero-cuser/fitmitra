@@ -142,10 +142,14 @@ const DashboardContent = () => {
   );
 };
 
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 export default function App() {
   return (
-    <FitnessProvider>
-      <DashboardContent />
-    </FitnessProvider>
+    <ErrorBoundary>
+      <FitnessProvider>
+        <DashboardContent />
+      </FitnessProvider>
+    </ErrorBoundary>
   );
 }
