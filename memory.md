@@ -174,8 +174,8 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
   * Created `SIH_PITCH_AND_VIVA_QA.md` with 30s elevator pitch, 2-min jury pitch, evaluation metric alignments, and 9 high-stakes jury viva defense answers.
   * Added `defer` to MediaPipe CDN `<script>` tags in `index.html` to eliminate render-blocking delays.
   * Configured `base: './'` in `vite.config.js` for universal hosting compatibility.
-  * Created `.github/workflows/deploy.yml` for automated 24/7 permanent deployment to GitHub Pages (`https://zero-cuser.github.io/fitmitra/`).
-  * Re-verified local Vite server running at `http://localhost:3000/` (HTTP 200 OK).
+  * Successfully deployed and verified live on GitHub Pages at `https://zero-cuser.github.io/fitmitra/` (HTTP 200 OK, SSL active, 24/7 permanent uptime).
+  * Re-verified local Vite dev server running at `http://localhost:3000/` (HTTP 200 OK).
 
 ---
 
