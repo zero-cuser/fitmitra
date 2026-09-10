@@ -4,6 +4,7 @@
 > **Target Audience:** College and university students living in hostels, dorms, and shared student housing.  
 > **Status:** Production-Ready MVP (Verified Vite Build, 0 Vulnerabilities, 100% Client-Side AI).
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-zero--cuser.github.io%2Ffitmitra-brightgreen.svg)](https://zero-cuser.github.io/fitmitra/)
 [![React](https://img.shields.io/badge/React-18.3-blue.svg)](https://reactjs.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-purple.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8.svg)](https://tailwindcss.com/)

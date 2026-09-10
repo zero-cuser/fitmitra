@@ -170,11 +170,12 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
 
 * **Commit `feb2b0b` (AI Context & Architecture Sync):**
   * Updated `README.md` and `memory.md` with complete collaborator guides and kinematics matrix.
-* **Current Milestone (SIH Presentation & Viva Q&A Defense + Server Health Fix):**
-  * Created `SIH_PITCH_AND_VIVA_QA.md` with 30s elevator pitch, 2-min jury pitch, evaluation metric alignments, and 9 high-stakes jury viva defense answers (AI edge computing, dim lighting resilience, cheat rep prevention, mess thali logic, dorm privacy, and university rollout).
-  * Added `defer` to MediaPipe CDN `<script>` tags in `index.html` to eliminate render-blocking delays on slow or restricted networks.
-  * Verified Vite v6 dev server active on `http://localhost:3000/` (HTTP 200 OK for `/`, `/src/main.jsx`, `/src/App.jsx`).
-  * Launched the browser process automatically to open `http://localhost:3000/`.
+* **Current Milestone (SIH Presentation & Permanent Deployment):**
+  * Created `SIH_PITCH_AND_VIVA_QA.md` with 30s elevator pitch, 2-min jury pitch, evaluation metric alignments, and 9 high-stakes jury viva defense answers.
+  * Added `defer` to MediaPipe CDN `<script>` tags in `index.html` to eliminate render-blocking delays.
+  * Configured `base: './'` in `vite.config.js` for universal hosting compatibility.
+  * Created `.github/workflows/deploy.yml` for automated 24/7 permanent deployment to GitHub Pages (`https://zero-cuser.github.io/fitmitra/`).
+  * Re-verified local Vite server running at `http://localhost:3000/` (HTTP 200 OK).
 
 ---
 
