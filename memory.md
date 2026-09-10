@@ -172,6 +172,7 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
   * Updated `README.md` and `memory.md` with complete collaborator guides and kinematics matrix.
 * **Current Milestone (SIH Presentation & Viva Q&A Defense):**
   * Created `SIH_PITCH_AND_VIVA_QA.md` with 30s elevator pitch, 2-min jury pitch, evaluation metric alignments, and 9 high-stakes jury viva defense answers (AI edge computing, dim lighting resilience, cheat rep prevention, mess thali logic, dorm privacy, and university rollout).
+  * Dev server confirmed running on Vite v6 at `http://localhost:3000/` and local network `http://172.22.110.69:3000/` (HTTP 200 OK).
 
 ---
 
