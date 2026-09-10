@@ -118,6 +118,7 @@ fitmitra/
 ├── techstack.md                         # Technical Architecture Document
 ├── phases.md                            # Development Roadmap & Sprint Phases
 ├── memory.md                            # Architecture Decision Records & System Memory
+├── SIH_PITCH_AND_VIVA_QA.md             # Smart India Hackathon Presentation & Jury Defense
 ├── README.md                            # Comprehensive Project Guide & AI Context
 ├── public/
 └── src/

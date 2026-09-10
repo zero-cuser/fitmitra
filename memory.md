@@ -168,6 +168,11 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
   * Added `<ErrorBoundary />` component protecting against runtime crashes.
   * Implemented defensive MediaDevices guards and isolated MediaPipe `try...catch` blocks.
 
+* **Commit `feb2b0b` (AI Context & Architecture Sync):**
+  * Updated `README.md` and `memory.md` with complete collaborator guides and kinematics matrix.
+* **Current Milestone (SIH Presentation & Viva Q&A Defense):**
+  * Created `SIH_PITCH_AND_VIVA_QA.md` with 30s elevator pitch, 2-min jury pitch, evaluation metric alignments, and 9 high-stakes jury viva defense answers (AI edge computing, dim lighting resilience, cheat rep prevention, mess thali logic, dorm privacy, and university rollout).
+
 ---
 
 ## 7. Future Feature Roadmap (Backlog)
@@ -180,3 +185,13 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
    * Contactless pulse calculation via facial micro-color shifts in webcam video frames.
 4. **FitBuddy Virtual Dorm Mascot (Tamagotchi Evolved):**
    * Pixel-art desktop pet that slumps when the user is sedentary and gets buff when workouts are completed.
+
+---
+
+## 8. Smart India Hackathon (SIH) Defense Strategy
+
+* **Key Narrative for Evaluators:**
+  * Frame FitMitra not as a "generic fitness app", but as a **student-centric institutional wellness tool** targeting the Indian higher education demographic.
+  * Contrast with Western apps: FitMitra handles dal, roti, and sattu on ₹50-₹100/day budgets rather than avocado and whey protein.
+  * Contrast with hardware wearables: FitMitra uses $0 hardware (existing student webcams) running client-side MediaPipe at 45–60 FPS with zero cloud bills.
+  * Emphasize the **Fit India Movement** alignment for nationwide campus deployment.
