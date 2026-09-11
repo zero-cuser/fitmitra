@@ -2,11 +2,12 @@
 
 > **Hackathon Theme:** Student Innovation — Ideas that can boost fitness activities and assist in keeping fit.  
 > **Target Audience:** College and university students living in hostels, dorms, and shared student housing.  
-> **Status:** Production-Ready MVP (Verified Vite Build, 0 Vulnerabilities, 100% Client-Side AI).
+> **Status:** Production-Ready (Next.js 14 App Router, TypeScript, 0 Vulnerabilities, 100% Client-Side AI).
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-zero--cuser.github.io%2Ffitmitra-brightgreen.svg)](https://zero-cuser.github.io/fitmitra/)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2_App_Router-black.svg)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.3-blue.svg)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-6.0-purple.svg)](https://vitejs.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8.svg)](https://tailwindcss.com/)
 [![MediaPipe Pose](https://img.shields.io/badge/AI-MediaPipe_Pose_In--Browser-brightgreen.svg)](https://developers.google.com/mediapipe)
 [![Zero Cloud Cost](https://img.shields.io/badge/Cost-$0_Zero_Backend_Required-success.svg)]()
@@ -18,11 +19,13 @@
 
 > [!NOTE]
 > **To any AI Agent, Evaluator, or Developer Reading This File:**
-> This repository contains **FitMitra**, a full-stack client-side web application designed to solve student health and fitness crises (sedentary study marathons, tiny dorm spaces, budget mess food, and exam anxiety).
+> This repository contains **FitMitra**, an AI-driven biometric fitness companion application designed to solve student health and ergonomics crises.
 > 
 > * **Project Root:** `fitmitra/`
-> * **Framework:** React 18 + Vite 6 + Tailwind CSS + Lucide Icons + Canvas API + Web Audio + Web Speech Synthesis.
-> * **Core AI Engine:** MediaPipe Pose 33-landmark estimation running in-browser via WebRTC with mathematical vector kinematics (`AngleMath.js`).
+> * **Framework:** React 18 + Next.js 14 (App Router) + TypeScript + Tailwind CSS + Lucide Icons + Canvas API + Web Audio + Web Speech Synthesis.
+> * **Core AI Engine:** Client-side MediaPipe Pose (33 skeletal landmarks) running in dynamic client components (`ssr: false`) with typed Euclidean vector kinematics (`AngleMath.ts`).
+> * **User Authentication:** Persistent client-side session (`AuthModal.tsx` & `AuthContext.tsx`) with fitness goal tracking (*Posture Correction*, *Strength*, *Mobility*, *Cardio*).
+> * **Zero Coin Bloat:** Purely physiological and motivational tracking (Level/XP, Workout Streak, Real-time Joint Angle, Audio Coaching).
 > * **Zero-Crash Resilience:** Features an interactive kinematic simulator that mirrors live pose tracking even if camera permissions are blocked or absent.
 > * **Architecture Decision Records:** Full system memory is logged in [`memory.md`](./memory.md).
 

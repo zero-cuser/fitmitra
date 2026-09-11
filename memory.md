@@ -170,12 +170,25 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
 
 * **Commit `feb2b0b` (AI Context & Architecture Sync):**
   * Updated `README.md` and `memory.md` with complete collaborator guides and kinematics matrix.
-* **Current Milestone (SIH Presentation & Permanent Deployment):**
-  * Created `SIH_PITCH_AND_VIVA_QA.md` with 30s elevator pitch, 2-min jury pitch, evaluation metric alignments, and 9 high-stakes jury viva defense answers.
-  * Added `defer` to MediaPipe CDN `<script>` tags in `index.html` to eliminate render-blocking delays.
-  * Configured `base: './'` in `vite.config.js` for universal hosting compatibility.
-  * Successfully deployed and verified live on GitHub Pages at `https://zero-cuser.github.io/fitmitra/` (HTTP 200 OK, SSL active, 24/7 permanent uptime).
-  * Re-verified local Vite dev server running at `http://localhost:3000/` (HTTP 200 OK).
+### ADR 008: Next.js App Router (v14), TypeScript & Coin Removal
+* **Decision:** Migrated core frontend from Vite to Next.js 14 (App Router) with TypeScript. Completely eliminated the coin reward counter from all state and UI. Isolated all camera/MediaPipe/WebRTC execution inside dynamic client components (`ssr: false`).
+* **Rationale:**
+  * Next.js provides institutional enterprise-grade structure, SSR optimization, and automated static page generation.
+  * Dynamically importing `CameraView` with `ssr: false` prevents server-side hydration mismatches and guarantees zero build-time crashes with browser APIs (`navigator`, `window`, WebRTC, `<canvas>`).
+  * Coins created superficial gamification bloat; focusing strictly on physiological Level/XP progress, Daily Streak, and Audio Coaching creates genuine long-term student habit formation.
+
+---
+
+## 6. Milestone Changelog
+
+* **Current Milestone (Next.js 14 App Router, TypeScript, Auth & Coin Elimination Refactor):**
+  * Rebuilt the entire codebase using Next.js 14 App Router, TypeScript, and Tailwind CSS.
+  * Verified production build (`npm run build`) passing with 4/4 static pages generated and zero TypeScript errors (`npx tsc --noEmit`).
+  * Permanently removed virtual coin counters from top bar, modals, and context stores.
+  * Implemented client-side Authentication modal (`AuthModal.tsx` & `AuthContext.tsx`) with persistent goal tracking (*Posture Correction*, *Strength*, *Mobility*, *Cardio*) and `localStorage` session preservation.
+  * Isolated `CameraView.tsx` with dynamic import (`ssr: false`), real-time 33-landmark skeleton tracking, green/red joint feedback, and floating biometric correction pills.
+  * Built typed exercise catalog (`exercises.ts`) for Squats, Push-ups, Lunges, and Plank with biomechanical checklist in `StatsPanel.tsx`.
+  * Verified active Next.js development server running on `http://localhost:3000/` (HTTP 200 OK).
 
 ---
 
