@@ -24,9 +24,15 @@
 > * **Project Root:** `fitmitra/`
 > * **Framework:** React 18 + Next.js 14 (App Router) + TypeScript + Tailwind CSS + Lucide Icons + Canvas API + Web Audio + Web Speech Synthesis.
 > * **Core AI Engine:** Client-side MediaPipe Pose (33 skeletal landmarks) running in dynamic client components (`ssr: false`) with typed Euclidean vector kinematics (`AngleMath.ts`).
-> * **User Authentication:** Persistent client-side session (`AuthModal.tsx` & `AuthContext.tsx`) with fitness goal tracking (*Posture Correction*, *Strength*, *Mobility*, *Cardio*).
-> * **Zero Coin Bloat:** Purely physiological and motivational tracking (Level/XP, Workout Streak, Real-time Joint Angle, Audio Coaching).
-> * **Zero-Crash Resilience:** Features an interactive kinematic simulator that mirrors live pose tracking even if camera permissions are blocked or absent.
+> * **5-Pillar Unified Hub (`page.tsx`):**
+>   1. **AI Pose Coach**: Real-time camera & interactive simulator for 5 exercises (Squats, Push-ups, Jumping Jacks, Lunges, Plank) with audio coaching.
+>   2. **Weekly Calories & Mess Tracker**: 7-day graphical representation comparing calories burned against hostel mess food logged.
+>   3. **Campus Friends Hub**: Connect with hostel wing mates, view live activity statuses, cheer peers, and open side-by-side daily progress comparisons.
+>   4. **Study Posture Sentinel**: Cervical spine head tilt tracking ($>25^\circ$), 25m Pomodoro study intervals, and 2-min desk micro-stretches.
+>   5. **Exam Stress Sanctuary**: 4-7-8 Box Breathing pacer with animated expanding visualizer for vagal nerve reset.
+> * **User Authentication:** Persistent student session (`AuthModal.tsx` & `AuthContext.tsx`) with student username, hostel wing selection, and 1-click Demo Guest sign-in.
+> * **Zero Coin Bloat:** Purely physiological tracking (Level/XP, Workout Streak, Real-time Joint Angle, Calorie Balance, Audio Coaching).
+> * **Zero-Crash Resilience:** Full interactive kinematic simulators for camera-based features so the demo never fails.
 > * **Architecture Decision Records:** Full system memory is logged in [`memory.md`](./memory.md).
 
 ---

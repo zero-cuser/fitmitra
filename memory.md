@@ -171,23 +171,41 @@ $$\text{Angle } \theta = |\text{atan2}(C_y - B_y, C_x - B_x) - \text{atan2}(A_y 
 * **Commit `feb2b0b` (AI Context & Architecture Sync):**
   * Updated `README.md` and `memory.md` with complete collaborator guides and kinematics matrix.
 ### ADR 008: Next.js App Router (v14), TypeScript & Coin Removal
-* **Decision:** Migrated core frontend from Vite to Next.js 14 (App Router) with TypeScript. Completely eliminated the coin reward counter from all state and UI. Isolated all camera/MediaPipe/WebRTC execution inside dynamic client components (`ssr: false`).
+* **Decision:** Migrated core frontend to Next.js 14 (App Router) with TypeScript. Completely eliminated the coin reward counter from all state and UI. Isolated all camera/MediaPipe/WebRTC execution inside dynamic client components (`ssr: false`).
 * **Rationale:**
   * Next.js provides institutional enterprise-grade structure, SSR optimization, and automated static page generation.
   * Dynamically importing `CameraView` with `ssr: false` prevents server-side hydration mismatches and guarantees zero build-time crashes with browser APIs (`navigator`, `window`, WebRTC, `<canvas>`).
   * Coins created superficial gamification bloat; focusing strictly on physiological Level/XP progress, Daily Streak, and Audio Coaching creates genuine long-term student habit formation.
 
+### ADR 009: Campus Friends System & Head-to-Head Daily Progress Comparison
+* **Decision:** Implemented client-side social architecture in `AuthContext.tsx`, `FriendsHub.tsx`, and `DailyComparisonModal.tsx`.
+* **Rationale:**
+  * Allows students to connect via usernames or wing codes without backend dependency.
+  * Side-by-side daily progress modal directly compares: Reps Completed Today, Calories Burned, Calories Gained from Mess, Posture Health Score (%), and Active Streaks.
+  * Features interactive Cheering with toast/audio feedback to foster healthy hostel wing motivation.
+
+### ADR 010: 7-Day Weekly Calorie Balance Graphical Representation
+* **Decision:** Built `WeeklyCalorieChart.tsx` featuring an interactive 7-day dual-column visualization (Mon–Sun).
+* **Rationale:**
+  * Compares Calories Burned (from workouts & reps) in emerald against Calories Gained (from logged hostel mess meals) in amber.
+  * Calculates daily and weekly Net Energy Balance (Deficit / Surplus) with interactive day selection.
+  * Automatically recalculates in real-time as reps are performed and mess foods are logged.
+
 ---
 
 ## 6. Milestone Changelog
 
-* **Current Milestone (Next.js 14 App Router, TypeScript, Auth & Coin Elimination Refactor):**
-  * Rebuilt the entire codebase using Next.js 14 App Router, TypeScript, and Tailwind CSS.
+* **Current Milestone (Full Next.js 14 + TS Overhaul, All 5 Features Restored, Auth, Friends Hub, Weekly Calorie Graph):**
+  * Built complete application using Next.js 14 App Router, React 18, TypeScript, and Tailwind CSS.
   * Verified production build (`npm run build`) passing with 4/4 static pages generated and zero TypeScript errors (`npx tsc --noEmit`).
-  * Permanently removed virtual coin counters from top bar, modals, and context stores.
-  * Implemented client-side Authentication modal (`AuthModal.tsx` & `AuthContext.tsx`) with persistent goal tracking (*Posture Correction*, *Strength*, *Mobility*, *Cardio*) and `localStorage` session preservation.
-  * Isolated `CameraView.tsx` with dynamic import (`ssr: false`), real-time 33-landmark skeleton tracking, green/red joint feedback, and floating biometric correction pills.
-  * Built typed exercise catalog (`exercises.ts`) for Squats, Push-ups, Lunges, and Plank with biomechanical checklist in `StatsPanel.tsx`.
+  * Permanently removed virtual coin counters from top bar, cards, and context stores.
+  * Integrated all 5 core student pillars in a simplified segmented switcher (`src/app/page.tsx`):
+    1. **AI Pose Coach**: Real-time MediaPipe vision + synthetic kinematics simulator for Squats, Push-ups, Jumping Jacks, Lunges, and Planks.
+    2. **Weekly Calories & Mess Tracker**: Interactive 7-day Burned vs. Gained chart + Indian mess menu food logger + ₹100 daily protein hacks.
+    3. **Campus Friends Hub**: Connect with hostel roommates, inspect live statuses, send cheers, and open daily head-to-head comparison modal.
+    4. **Study Posture Sentinel**: Cervical spine head tilt tracking ($>25^\circ$), Pomodoro focus blocks, and 2-minute desk micro-stretches.
+    5. **Exam Stress Sanctuary**: 4-7-8 Box Breathing pacer with animated expanding circle for vagal nerve reset.
+  * Implemented authentication system (`AuthModal.tsx` & `AuthContext.tsx`) with student username, hostel wing selection, and 1-click Demo Guest sign-in.
   * Verified active Next.js development server running on `http://localhost:3000/` (HTTP 200 OK).
 
 ---

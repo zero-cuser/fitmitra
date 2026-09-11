@@ -1,4 +1,4 @@
-export type ExerciseKey = 'squats' | 'pushups' | 'lunges' | 'plank';
+export type ExerciseKey = 'squats' | 'pushups' | 'jumpingJacks' | 'lunges' | 'plank';
 
 export type FitnessGoal = 'posture' | 'strength' | 'mobility' | 'cardio';
 
@@ -45,10 +45,62 @@ export interface TelemetryResult {
 export interface UserProfile {
   id: string;
   name: string;
+  username: string;
   email: string;
+  hostelWing: string;
   goal: FitnessGoal;
   joinedDate: string;
   avatarColor: string;
+}
+
+export interface FriendTodayStats {
+  repsCompleted: number;
+  caloriesBurned: number;
+  caloriesGained: number;
+  postureScore: number;
+  streakDays: number;
+  favoriteExercise: string;
+}
+
+export interface Friend {
+  id: string;
+  name: string;
+  username: string;
+  hostelWing: string;
+  avatarColor: string;
+  statusText: string;
+  isOnline: boolean;
+  todayStats: FriendTodayStats;
+  cheerCount: number;
+}
+
+export interface DailyCalorieRecord {
+  day: string; // 'Mon', 'Tue', etc.
+  date: string;
+  caloriesBurned: number;
+  caloriesGained: number;
+  netBalance: number; // gained - burned
+}
+
+export interface MessMenuItem {
+  id: string;
+  name: string;
+  category: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  icon: string;
+}
+
+export interface LoggedMeal {
+  id: string;
+  itemId: string;
+  name: string;
+  timestamp: string;
+  calories: number;
+  protein: number;
+  icon: string;
 }
 
 export interface WorkoutState {

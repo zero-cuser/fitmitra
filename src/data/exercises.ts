@@ -51,6 +51,31 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       'Full lockout at top'
     ]
   },
+  jumpingJacks: {
+    id: 'jumpingJacks',
+    name: 'Cardio Jumping Jacks',
+    shortName: 'Jacks',
+    targetMuscles: 'Cardiovascular, Calves & Shoulders',
+    category: 'Cardio Burn',
+    metricUnit: 'reps',
+    defaultTarget: 25,
+    calPerRep: 0.22,
+    isHoldExercise: false,
+    upThreshold: 135,
+    downThreshold: 45,
+    instructions: [
+      'Start standing upright with feet together and hands at sides.',
+      'Jump feet outward while raising arms overhead into a wide V (> 135°).',
+      'Land softly on balls of feet and return to start position (< 45°).',
+      'Maintain a steady, rhythmic cardiovascular cadence.'
+    ],
+    formChecklist: [
+      'Arms abduct overhead past 135°',
+      'Feet land shoulder-width or wider',
+      'Soft knee landings to protect joints',
+      'Full cycle return to starting stance'
+    ]
+  },
   lunges: {
     id: 'lunges',
     name: 'Alternating Bodyweight Lunges',

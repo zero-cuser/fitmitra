@@ -380,6 +380,65 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
   };
 };
 
+// 4. JUMPING JACK KINEMATICS
+export const evaluateJumpingJackLandmarks = (
+  landmarks: LandmarkPoint[],
+  currentStage: 'up' | 'down'
+): TelemetryResult => {
+  const req = [
+    LANDMARK_INDEX.LEFT_SHOULDER,
+    LANDMARK_INDEX.RIGHT_SHOULDER,
+    LANDMARK_INDEX.LEFT_WRIST,
+    LANDMARK_INDEX.RIGHT_WRIST,
+    LANDMARK_INDEX.LEFT_HIP,
+    LANDMARK_INDEX.RIGHT_HIP
+  ];
+
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.55);
+  if (!inFrame) {
+    return {
+      inFrame: false,
+      angle: 45,
+      stage: currentStage,
+      repCompleted: false,
+      formFaults: [],
+      isGoodForm: true,
+      formCue: 'Step back into frame'
+    };
+  }
+
+  const leftShoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
+  const leftHip = landmarks[LANDMARK_INDEX.LEFT_HIP];
+  const leftWrist = landmarks[LANDMARK_INDEX.LEFT_WRIST];
+
+  const armAngle = calculateAngle(leftHip, leftShoulder, leftWrist) || 45;
+
+  let newStage = currentStage;
+  let repCompleted = false;
+  let formCue: string | null = null;
+
+  if (armAngle >= 135) {
+    if (currentStage !== 'up') {
+      newStage = 'up';
+      formCue = 'Arms high!';
+    }
+  } else if (armAngle <= 50 && currentStage === 'up') {
+    newStage = 'down';
+    repCompleted = true;
+    formCue = 'Jack rep counted!';
+  }
+
+  return {
+    inFrame: true,
+    angle: armAngle,
+    stage: newStage,
+    repCompleted,
+    formFaults: [],
+    isGoodForm: true,
+    formCue
+  };
+};
+
 export const evaluateExerciseLandmarks = (
   exerciseKey: ExerciseKey,
   landmarks: LandmarkPoint[],
@@ -390,6 +449,8 @@ export const evaluateExerciseLandmarks = (
       return evaluateSquatLandmarks(landmarks, currentStage);
     case 'pushups':
       return evaluatePushupLandmarks(landmarks, currentStage);
+    case 'jumpingJacks':
+      return evaluateJumpingJackLandmarks(landmarks, currentStage);
     case 'lunges':
       return evaluateLungeLandmarks(landmarks, currentStage);
     case 'plank':

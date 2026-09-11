@@ -389,6 +389,10 @@ export const CameraView: React.FC = () => {
             next = prev + simDirection * 6;
             if (next <= 80) newDirection = 1;
             else if (next >= 160) newDirection = -1;
+          } else if (selectedExercise === 'jumpingJacks') {
+            next = prev + simDirection * 7;
+            if (next >= 140) newDirection = -1;
+            else if (next <= 40) newDirection = 1;
           } else {
             // plank deviation
             next = prev + simDirection * 2;
@@ -436,6 +440,18 @@ export const CameraView: React.FC = () => {
                 syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.56, y: 0.52, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.43, y: 0.75, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.57, y: 0.75, visibility: 0.95 };
+              } else if (selectedExercise === 'jumpingJacks') {
+                const armAngleNorm = (next - 40) / 100;
+                const armY = 0.32 - armAngleNorm * 0.2;
+                const armXLeft = 0.42 - armAngleNorm * 0.18;
+                const armXRight = 0.58 + armAngleNorm * 0.18;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: armXLeft, y: armY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: armXRight, y: armY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.45, y: 0.52, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.55, y: 0.52, visibility: 0.95 };
+                const legSpread = armAngleNorm * 0.12;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.45 - legSpread, y: 0.88, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.55 + legSpread, y: 0.88, visibility: 0.95 };
               } else if (selectedExercise === 'lunges') {
                 const frontKneeY = 0.68 + norm * 0.08;
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.45, y: 0.52, visibility: 0.95 };
