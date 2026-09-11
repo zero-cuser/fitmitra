@@ -52,7 +52,7 @@ export default function Home() {
     },
     {
       id: 'nutrition',
-      label: 'Weekly Calories & Mess',
+      label: 'Weekly Calories & Nutrition',
       icon: <Flame className="w-4 h-4 text-amber-400" />,
       badge: 'Energy Balance'
     },
@@ -183,13 +183,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* TAB 2: Weekly Calories & Mess Nutrition */}
+        {/* TAB 2: Weekly Calories & Daily Nutrition */}
         {activeTab === 'nutrition' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* The Graphical 7-Day Calories Burned vs Gained Chart */}
             <WeeklyCalorieChart />
 
-            {/* Hostel Mess Food Smart-Logger & ₹100 Hacks */}
+            {/* Daily Nutrition Smart-Logger & ₹100 Hacks */}
             <NutritionTracker />
           </div>
         )}

@@ -1,8 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, User, Mail, Lock, Sparkles, ShieldCheck, Dumbbell, Compass, HeartPulse, Building2, AtSign } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
+import React, { useState, useMemo } from 'react';
+import {
+  X,
+  User,
+  Mail,
+  Lock,
+  Sparkles,
+  ShieldCheck,
+  Dumbbell,
+  Compass,
+  HeartPulse,
+  AtSign,
+  Flame,
+  Droplets,
+  Activity,
+  Ruler,
+  Weight
+} from 'lucide-react';
+import { useAuth, calculateCalorieAndWaterNeeds } from '@/context/AuthContext';
 import { FitnessGoal } from '@/types/fitness';
 
 export const AuthModal: React.FC = () => {
@@ -12,9 +28,20 @@ export const AuthModal: React.FC = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [hostelWing, setHostelWing] = useState('Aryabhatta Wing A (Room 204)');
   const [goal, setGoal] = useState<FitnessGoal>('posture');
   const [error, setError] = useState<string | null>(null);
+
+  // Calorie & Hydration Calculation Metrics
+  const [age, setAge] = useState<number>(20);
+  const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
+  const [heightCm, setHeightCm] = useState<number>(175);
+  const [weightKg, setWeightKg] = useState<number>(68);
+  const [activityLevel, setActivityLevel] = useState<'sedentary' | 'light' | 'moderate' | 'very_active'>('moderate');
+
+  // Dynamically calculate recommended energy and hydration needs
+  const calculatedNeeds = useMemo(() => {
+    return calculateCalorieAndWaterNeeds(gender, weightKg, heightCm, age, activityLevel, goal);
+  }, [gender, weightKg, heightCm, age, activityLevel, goal]);
 
   if (!isAuthModalOpen) return null;
 
@@ -23,7 +50,13 @@ export const AuthModal: React.FC = () => {
     setError(null);
 
     if (authModalTab === 'signup') {
-      const res = signup(name, username, email, password, hostelWing, goal);
+      const res = signup(name, username, email, password, goal, {
+        age,
+        gender,
+        heightCm,
+        weightKg,
+        activityLevel
+      });
       if (!res.success) {
         setError(res.error || 'Failed to sign up.');
       } else {
@@ -46,15 +79,6 @@ export const AuthModal: React.FC = () => {
   const handleDemoStudent = () => {
     loginAsGuest();
   };
-
-  const HOSTEL_OPTIONS = [
-    'Aryabhatta Wing A (Room 204)',
-    'Ramanujan Wing B (Room 312)',
-    'Sarojini Wing C (Room 108)',
-    'Gargi Wing D (Room 402)',
-    'Bhabha Wing E (Room 115)',
-    'Day Scholar / Off-Campus Flat'
-  ];
 
   const goalsList: { id: FitnessGoal; label: string; icon: React.ReactNode; desc: string }[] = [
     {
@@ -85,7 +109,7 @@ export const AuthModal: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-emerald-500/10 text-white overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-emerald-500/10 text-white overflow-hidden max-h-[92vh] overflow-y-auto">
         
         {/* Background glow ornament */}
         <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -103,14 +127,14 @@ export const AuthModal: React.FC = () => {
         <div className="mb-6">
           <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-2">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Campus AI Profile</span>
+            <span>AI Fitness Profile</span>
           </div>
           <h3 className="text-2xl font-black tracking-tight">
-            {authModalTab === 'signup' ? 'Join FitMitra' : 'Welcome Back'}
+            {authModalTab === 'signup' ? 'Create Your Account' : 'Welcome Back'}
           </h3>
           <p className="text-xs text-slate-400 mt-1">
             {authModalTab === 'signup'
-              ? 'Create your zero-cloud student profile to track workouts and connect with friends.'
+              ? 'Calculate your daily calorie requirement, personalize hydration, and track workouts.'
               : 'Sign in to access your personal kinematics, friend comparison, and weekly logs.'}
           </p>
         </div>
@@ -176,7 +200,7 @@ export const AuthModal: React.FC = () => {
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Campus Username (For Friends)
+                  Username
                 </label>
                 <div className="relative">
                   <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -191,23 +215,113 @@ export const AuthModal: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                  Hostel / Dorm Wing
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              {/* CALORIE & HYDRATION REQUIREMENT CALCULATOR */}
+              <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>Calorie & Water Calculator</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Mifflin-St Jeor Formula</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Age (Years)</label>
+                    <input
+                      type="number"
+                      min={14}
+                      max={80}
+                      value={age}
+                      onChange={(e) => setAge(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1">Gender</label>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value as any)}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1 flex items-center space-x-1">
+                      <Ruler className="w-3 h-3 text-slate-500" />
+                      <span>Height (cm)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={120}
+                      max={220}
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-slate-400 mb-1 flex items-center space-x-1">
+                      <Weight className="w-3 h-3 text-slate-500" />
+                      <span>Weight (kg)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={35}
+                      max={180}
+                      value={weightKg}
+                      onChange={(e) => setWeightKg(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-400 mb-1 flex items-center space-x-1">
+                    <Activity className="w-3 h-3 text-slate-500" />
+                    <span>Daily Activity Level</span>
+                  </label>
                   <select
-                    value={hostelWing}
-                    onChange={(e) => setHostelWing(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none"
+                    value={activityLevel}
+                    onChange={(e) => setActivityLevel(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-emerald-500"
                   >
-                    {HOSTEL_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt} className="bg-slate-900 text-white">
-                        {opt}
-                      </option>
-                    ))}
+                    <option value="sedentary">Sedentary (Study / Desk Work, minimal exercise)</option>
+                    <option value="light">Lightly Active (1–2 workouts / week)</option>
+                    <option value="moderate">Moderately Active (3–5 workouts / week)</option>
+                    <option value="very_active">Very Active (6–7 intense workouts / sports)</option>
                   </select>
+                </div>
+
+                {/* Live Recommended Energy Cards */}
+                <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/30 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-slate-400 flex items-center space-x-1">
+                      <Flame className="w-3 h-3 text-amber-400" />
+                      <span>Target Calorie Intake</span>
+                    </div>
+                    <div className="text-base font-black text-emerald-400">
+                      ~{calculatedNeeds.targetCalories.toLocaleString()} <span className="text-xs font-normal text-slate-300">kcal/day</span>
+                    </div>
+                  </div>
+
+                  <div className="border-l border-slate-800 pl-4">
+                    <div className="text-[10px] text-slate-400 flex items-center space-x-1">
+                      <Droplets className="w-3 h-3 text-cyan-400" />
+                      <span>Daily Water Target</span>
+                    </div>
+                    <div className="text-base font-black text-cyan-400">
+                      {(calculatedNeeds.targetWaterMl / 1000).toFixed(1)} <span className="text-xs font-normal text-slate-300">L/day</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </>
@@ -250,7 +364,7 @@ export const AuthModal: React.FC = () => {
           {authModalTab === 'signup' && (
             <div>
               <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Primary Student Wellness Goal
+                Primary Fitness Goal
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {goalsList.map((item) => (
@@ -279,7 +393,7 @@ export const AuthModal: React.FC = () => {
             type="submit"
             className="w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-500 transition-all active:scale-[0.99]"
           >
-            {authModalTab === 'signup' ? 'Complete Profile & Enter' : 'Sign In'}
+            {authModalTab === 'signup' ? 'Complete Profile & Save Nutrition Plan' : 'Sign In'}
           </button>
         </form>
 
@@ -292,7 +406,7 @@ export const AuthModal: React.FC = () => {
             className="w-full py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-xs font-semibold text-emerald-400 transition-colors flex items-center justify-center space-x-1.5"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Instant Demo Sign-in (Aarav Sharma - Wing A)</span>
+            <span>Instant Demo Sign-in (Aarav Sharma - Verified Profile)</span>
           </button>
         </div>
 
@@ -300,3 +414,4 @@ export const AuthModal: React.FC = () => {
     </div>
   );
 };
+

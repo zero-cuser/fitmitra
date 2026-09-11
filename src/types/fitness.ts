@@ -47,10 +47,19 @@ export interface UserProfile {
   name: string;
   username: string;
   email: string;
-  hostelWing: string;
+  hostelWing?: string;
   goal: FitnessGoal;
   joinedDate: string;
   avatarColor: string;
+  // Calorie & Body Metrics
+  age?: number;
+  gender?: 'male' | 'female' | 'other';
+  heightCm?: number;
+  weightKg?: number;
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'very_active';
+  calculatedBmr?: number;
+  targetDailyCalories?: number;
+  targetWaterMl?: number;
 }
 
 export interface FriendTodayStats {
@@ -66,7 +75,7 @@ export interface Friend {
   id: string;
   name: string;
   username: string;
-  hostelWing: string;
+  hostelWing?: string;
   avatarColor: string;
   statusText: string;
   isOnline: boolean;
@@ -92,6 +101,8 @@ export interface MessMenuItem {
   fat: number;
   icon: string;
 }
+
+export type FoodMenuItem = MessMenuItem;
 
 export interface LoggedMeal {
   id: string;

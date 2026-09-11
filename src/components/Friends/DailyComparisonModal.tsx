@@ -47,7 +47,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
       userWins: caloriesBurnedToday >= friend.todayStats.caloriesBurned
     },
     {
-      label: 'Mess Food Logged (Intake)',
+      label: 'Food & Meals Logged (Intake)',
       icon: <Utensils className="w-4 h-4 text-amber-400" />,
       userVal: caloriesGainedToday,
       friendVal: friend.todayStats.caloriesGained,
@@ -92,11 +92,11 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
         <div className="mb-6">
           <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-2">
             <Trophy className="w-3.5 h-3.5" />
-            <span>Head-to-Head Campus Matchup</span>
+            <span>Head-to-Head Progress Matchup</span>
           </div>
           <h3 className="text-2xl font-black tracking-tight">Today&apos;s Fitness Faceoff</h3>
           <p className="text-xs text-slate-400 mt-1">
-            Comparing your daily biometric progress with your campus friend.
+            Comparing your daily biometric progress side-by-side with your friend.
           </p>
         </div>
 
@@ -109,7 +109,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
             </div>
             <span className="text-xs font-bold text-white line-clamp-1">{currentUser.name} (You)</span>
             <span className="text-[10px] text-emerald-400 font-mono">@{currentUser.username}</span>
-            <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-1">{currentUser.hostelWing}</span>
+            <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-1">{currentUser.hostelWing || 'Active Member'}</span>
           </div>
 
           {/* Friend */}
@@ -119,7 +119,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
             </div>
             <span className="text-xs font-bold text-white line-clamp-1">{friend.name}</span>
             <span className="text-[10px] text-cyan-400 font-mono">@{friend.username}</span>
-            <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-1">{friend.hostelWing}</span>
+            <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-1">{friend.hostelWing || 'Fitness Friend'}</span>
           </div>
         </div>
 

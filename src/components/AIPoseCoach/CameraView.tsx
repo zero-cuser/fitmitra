@@ -382,22 +382,20 @@ export const CameraView: React.FC = () => {
           let newDirection = simDirection;
 
           if (selectedExercise === 'squats' || selectedExercise === 'lunges') {
-            next = prev + simDirection * 5;
-            if (next <= 85) newDirection = 1;
+            next = prev + simDirection * 4;
+            if (next <= 82) newDirection = 1;
             else if (next >= 165) newDirection = -1;
           } else if (selectedExercise === 'pushups') {
-            next = prev + simDirection * 6;
+            next = prev + simDirection * 4;
             if (next <= 80) newDirection = 1;
-            else if (next >= 160) newDirection = -1;
+            else if (next >= 162) newDirection = -1;
           } else if (selectedExercise === 'jumpingJacks') {
-            next = prev + simDirection * 7;
-            if (next >= 140) newDirection = -1;
-            else if (next <= 40) newDirection = 1;
+            next = prev + simDirection * 6;
+            if (next >= 145) newDirection = -1;
+            else if (next <= 38) newDirection = 1;
           } else {
-            // plank deviation
-            next = prev + simDirection * 2;
-            if (next >= 20) newDirection = -1;
-            else if (next <= 4) newDirection = 1;
+            // Plank: maintains rock-solid alignment (2-4° deviation)
+            next = 3;
           }
 
           setSimDirection(newDirection);
@@ -414,59 +412,139 @@ export const CameraView: React.FC = () => {
                 syntheticLandmarks.push({ x: 0.5, y: 0.5, visibility: 0.95 });
               }
 
-              // Head & Torso
-              syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.5, y: 0.2, visibility: 0.95 };
-              syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.42, y: 0.32, visibility: 0.95 };
-              syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.58, y: 0.32, visibility: 0.95 };
-
-              const norm = (180 - next) / 100;
-
               if (selectedExercise === 'squats') {
-                const hipY = 0.52 + norm * 0.14;
-                const kneeY = 0.72 + norm * 0.05;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.44, y: hipY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.56, y: hipY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.42, y: kneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.58, y: kneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.43, y: 0.9, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.57, y: 0.9, visibility: 0.95 };
+                // Standing: 165°, Deep Squat: 82°
+                const t = Math.max(0, Math.min(1, (165 - next) / (165 - 82)));
+                
+                // Head & Spine
+                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.44 - t * 0.03, y: 0.18 + t * 0.10, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.44 - t * 0.04, y: 0.28 + t * 0.10, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.52 - t * 0.04, y: 0.28 + t * 0.10, visibility: 0.95 };
+                
+                // Hips hinge down and back; knees track forward over feet
+                const hipX = 0.46 - t * 0.09;
+                const hipY = 0.48 + t * 0.19;
+                const kneeX = 0.48 + t * 0.07;
+                const kneeY = 0.69 + t * 0.02;
+                const ankleX = 0.48;
+                const ankleY = 0.90;
+
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: hipX, y: hipY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: hipX + 0.06, y: hipY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: kneeX, y: kneeY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: kneeX + 0.06, y: kneeY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: ankleX, y: ankleY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: ankleX + 0.06, y: ankleY, visibility: 0.95 };
+
+                // Arms out for counterbalance
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.56, y: 0.32 + t * 0.05, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.62, y: 0.32 + t * 0.05, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.66, y: 0.32 + t * 0.05, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.72, y: 0.32 + t * 0.05, visibility: 0.95 };
               } else if (selectedExercise === 'pushups') {
-                const elbowY = 0.4 + norm * 0.12;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.35, y: elbowY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.65, y: elbowY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.35, y: 0.6, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.65, y: 0.6, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.44, y: 0.52, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.56, y: 0.52, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.43, y: 0.75, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.57, y: 0.75, visibility: 0.95 };
+                // Lockout: 162°, Bottom chest press: 80°
+                const t = Math.max(0, Math.min(1, (162 - next) / (162 - 80)));
+                
+                // Hands planted firmly on floor
+                const wristX = 0.30;
+                const wristY = 0.68;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: wristX, y: wristY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: wristX + 0.06, y: wristY, visibility: 0.95 };
+
+                // Elbows bend back at 90°
+                const elbowX = 0.30 - t * 0.12;
+                const elbowY = 0.52 + t * 0.06;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: elbowX, y: elbowY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: elbowX + 0.06, y: elbowY, visibility: 0.95 };
+
+                // Torso & Shoulders descend parallel with rigid core
+                const shoulderX = 0.30;
+                const shoulderY = 0.38 + t * 0.18;
+                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.22, y: shoulderY - 0.05, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: shoulderX, y: shoulderY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: shoulderX + 0.06, y: shoulderY, visibility: 0.95 };
+
+                const hipX = 0.56;
+                const hipY = 0.46 + t * 0.16;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: hipX, y: hipY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: hipX + 0.06, y: hipY, visibility: 0.95 };
+
+                const ankleX = 0.84;
+                const ankleY = 0.64;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.70, y: 0.55 + t * 0.08, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.74, y: 0.55 + t * 0.08, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: ankleX, y: ankleY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: ankleX + 0.04, y: ankleY, visibility: 0.95 };
               } else if (selectedExercise === 'jumpingJacks') {
-                const armAngleNorm = (next - 40) / 100;
-                const armY = 0.32 - armAngleNorm * 0.2;
-                const armXLeft = 0.42 - armAngleNorm * 0.18;
-                const armXRight = 0.58 + armAngleNorm * 0.18;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: armXLeft, y: armY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: armXRight, y: armY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.45, y: 0.52, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.55, y: 0.52, visibility: 0.95 };
-                const legSpread = armAngleNorm * 0.12;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.45 - legSpread, y: 0.88, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.55 + legSpread, y: 0.88, visibility: 0.95 };
+                // Down: 38°, Up: 145°
+                const t = Math.max(0, Math.min(1, (next - 38) / (145 - 38)));
+                
+                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.50, y: 0.18, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.44, y: 0.30, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.56, y: 0.30, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.46, y: 0.52, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.54, y: 0.52, visibility: 0.95 };
+
+                // Arms sweep from sides (0.40, 0.58) to overhead (0.38, 0.14)
+                const leftWristX = 0.40 - t * 0.04;
+                const leftWristY = 0.58 - t * 0.44;
+                const rightWristX = 0.60 + t * 0.04;
+                const rightWristY = 0.58 - t * 0.44;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.42 - t * 0.10, y: 0.44 - t * 0.22, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.58 + t * 0.10, y: 0.44 - t * 0.22, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: leftWristX, y: leftWristY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: rightWristX, y: rightWristY, visibility: 0.95 };
+
+                // Feet jump from together to shoulder-width apart
+                const legSpread = t * 0.14;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.46 - legSpread * 0.6, y: 0.70, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.54 + legSpread * 0.6, y: 0.70, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.47 - legSpread, y: 0.88, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.53 + legSpread, y: 0.88, visibility: 0.95 };
               } else if (selectedExercise === 'lunges') {
-                const frontKneeY = 0.68 + norm * 0.08;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.45, y: 0.52, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.55, y: 0.52, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.42, y: frontKneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.58, y: 0.75, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.42, y: 0.88, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.62, y: 0.88, visibility: 0.95 };
+                // Standing tall: 165°, Deep 90° lunge: 82°
+                const t = Math.max(0, Math.min(1, (165 - next) / (165 - 82)));
+                
+                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.44, y: 0.20 + t * 0.08, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.44, y: 0.30 + t * 0.08, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.50, y: 0.30 + t * 0.08, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.44, y: 0.50 + t * 0.10, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.50, y: 0.50 + t * 0.10, visibility: 0.95 };
+
+                // Front leg steps forward into 90° flexion
+                const frontKneeX = 0.46 - t * 0.12;
+                const frontKneeY = 0.69 + t * 0.04;
+                const frontAnkleX = 0.46 - t * 0.12;
+                const frontAnkleY = 0.88;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: frontKneeX, y: frontKneeY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: frontAnkleX, y: frontAnkleY, visibility: 0.95 };
+
+                // Back leg extends back with knee hovering off floor
+                const backKneeX = 0.52 + t * 0.08;
+                const backKneeY = 0.69 + t * 0.12;
+                const backAnkleX = 0.52 + t * 0.18;
+                const backAnkleY = 0.88;
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: backKneeX, y: backKneeY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: backAnkleX, y: backAnkleY, visibility: 0.95 };
               } else {
-                // Plank
-                const sagY = 0.5 + (next / 30) * 0.1;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.48, y: sagY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.52, y: sagY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.35, y: 0.7, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.65, y: 0.7, visibility: 0.95 };
+                // Rock-Solid Forearm Plank: straight bodyline from shoulder to ankle
+                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.22, y: 0.44, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.30, y: 0.48, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.34, y: 0.48, visibility: 0.95 };
+                
+                // Forearms supporting weight
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.30, y: 0.64, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.34, y: 0.64, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.38, y: 0.64, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.42, y: 0.64, visibility: 0.95 };
+
+                // Rigid plank core
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.56, y: 0.52, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.60, y: 0.52, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.70, y: 0.54, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.74, y: 0.54, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.84, y: 0.56, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.88, y: 0.56, visibility: 0.95 };
               }
 
               const evalResult = evaluateExerciseLandmarks(

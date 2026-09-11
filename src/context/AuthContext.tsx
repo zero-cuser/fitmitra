@@ -3,6 +3,49 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FitnessGoal, Friend, UserProfile } from '@/types/fitness';
 
+export interface BodyMetricsInput {
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  heightCm: number;
+  weightKg: number;
+  activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active';
+}
+
+export const calculateCalorieAndWaterNeeds = (
+  gender: 'male' | 'female' | 'other',
+  weightKg: number,
+  heightCm: number,
+  age: number,
+  activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active',
+  goal: FitnessGoal
+) => {
+  // Mifflin-St Jeor Equation
+  const s = gender === 'female' ? -161 : gender === 'male' ? 5 : -78;
+  const bmr = Math.round(10 * weightKg + 6.25 * heightCm - 5 * age + s);
+
+  const activityMultipliers: Record<string, number> = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    very_active: 1.725
+  };
+  const mult = activityMultipliers[activityLevel] || 1.375;
+  const tdee = Math.round(bmr * mult);
+
+  let targetCalories = tdee;
+  if (goal === 'strength' || goal === 'cardio') {
+    targetCalories = tdee + 300;
+  } else if (goal === 'posture') {
+    targetCalories = tdee;
+  } else {
+    targetCalories = Math.max(1300, tdee - 350);
+  }
+
+  const targetWaterMl = Math.round(weightKg * 35); // 35 ml per kg bodyweight
+
+  return { bmr, tdee, targetCalories, targetWaterMl };
+};
+
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
@@ -12,7 +55,14 @@ interface AuthContextType {
   openAuthModal: (tab?: 'login' | 'signup') => void;
   closeAuthModal: () => void;
   login: (email: string, password: string) => { success: boolean; error?: string };
-  signup: (name: string, username: string, email: string, password: string, hostelWing: string, goal: FitnessGoal) => { success: boolean; error?: string };
+  signup: (
+    name: string,
+    username: string,
+    email: string,
+    password: string,
+    goal: FitnessGoal,
+    metrics?: BodyMetricsInput
+  ) => { success: boolean; error?: string };
   logout: () => void;
   loginAsGuest: () => void;
   updateGoal: (goal: FitnessGoal) => void;
@@ -28,10 +78,17 @@ const DEFAULT_USER: UserProfile = {
   name: 'Aarav Sharma',
   username: 'aarav_fit',
   email: 'aarav.sharma@campus.edu.in',
-  hostelWing: 'Aryabhatta Wing A (Room 204)',
   goal: 'posture',
   joinedDate: 'Sept 2026',
-  avatarColor: 'from-emerald-500 to-teal-700'
+  avatarColor: 'from-emerald-500 to-teal-700',
+  age: 20,
+  gender: 'male',
+  heightCm: 175,
+  weightKg: 68,
+  activityLevel: 'moderate',
+  calculatedBmr: 1675,
+  targetDailyCalories: 2200,
+  targetWaterMl: 2500
 };
 
 const INITIAL_CAMPUS_FRIENDS: Friend[] = [
@@ -41,7 +98,7 @@ const INITIAL_CAMPUS_FRIENDS: Friend[] = [
     username: 'rahul_sen',
     hostelWing: 'Aryabhatta Wing A (Room 210)',
     avatarColor: 'from-blue-500 to-indigo-600',
-    statusText: 'Crushing 40 squats before evening mess',
+    statusText: 'Crushing 40 squats before evening study',
     isOnline: true,
     cheerCount: 14,
     todayStats: {
@@ -181,8 +238,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     username: string,
     email: string,
     password: string,
-    hostelWing: string,
-    goal: FitnessGoal
+    goal: FitnessGoal,
+    metrics?: BodyMetricsInput
   ) => {
     if (!name.trim() || !username.trim() || !email.trim() || !password) {
       return { success: false, error: 'All fields are required.' };
@@ -204,15 +261,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ];
     const pickedColor = colors[Math.floor(Math.random() * colors.length)];
 
+    let calc = {
+      bmr: 1650,
+      tdee: 2200,
+      targetCalories: 2200,
+      targetWaterMl: 2500
+    };
+
+    if (metrics) {
+      calc = calculateCalorieAndWaterNeeds(
+        metrics.gender,
+        metrics.weightKg,
+        metrics.heightCm,
+        metrics.age,
+        metrics.activityLevel,
+        goal
+      );
+    }
+
     const newUser: UserProfile = {
       id: `usr_${Date.now()}`,
       name: name.trim(),
       username: cleanUsername,
       email: email.trim(),
-      hostelWing: hostelWing || 'Campus Hostel Wing',
       goal,
       joinedDate: 'Sept 2026',
-      avatarColor: pickedColor
+      avatarColor: pickedColor,
+      age: metrics?.age || 20,
+      gender: metrics?.gender || 'male',
+      heightCm: metrics?.heightCm || 175,
+      weightKg: metrics?.weightKg || 68,
+      activityLevel: metrics?.activityLevel || 'moderate',
+      calculatedBmr: calc.bmr,
+      targetDailyCalories: calc.targetCalories,
+      targetWaterMl: calc.targetWaterMl
     };
 
     setUser(newUser);

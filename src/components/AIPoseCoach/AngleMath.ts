@@ -373,7 +373,7 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
     inFrame: true,
     angle: deviation,
     stage: 'down',
-    repCompleted: isGoodForm,
+    repCompleted: false, // Plank is an isometric hold measured in seconds by hold timer
     formFaults,
     isGoodForm,
     formCue

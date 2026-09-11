@@ -18,7 +18,6 @@ interface WorkoutContextType extends WorkoutState {
   activeFaults: FormFault[];
   isTracking: boolean;
   setIsTracking: (tracking: boolean) => void;
-  // Nutrition and Weekly Calorie Chart State
   weeklyCalorieHistory: DailyCalorieRecord[];
   loggedMeals: LoggedMeal[];
   logMeal: (item: MessMenuItem) => void;
@@ -28,11 +27,16 @@ interface WorkoutContextType extends WorkoutState {
   proteinGainedToday: number;
   postureScoreToday: number;
   setPostureScoreToday: (score: number) => void;
+  // Hydration Monitoring
+  waterIntakeToday: number;
+  addWater: (amountMl: number) => void;
+  resetWater: () => void;
 }
 
 const STORAGE_KEY_WORKOUT = 'FITMITRA_WORKOUT_PROGRESS_V3';
 const STORAGE_KEY_NUTRITION = 'FITMITRA_NUTRITION_V3';
 const STORAGE_KEY_CALORIES_WEEK = 'FITMITRA_CALORIES_WEEK_V3';
+const STORAGE_KEY_WATER = 'FITMITRA_WATER_V3';
 
 const INITIAL_WEEKLY_CALORIES: DailyCalorieRecord[] = [
   { day: 'Mon', date: 'Sept 7', caloriesBurned: 280, caloriesGained: 1850, netBalance: 1570 },
@@ -128,6 +132,84 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [caloriesBurnedToday, caloriesGainedToday]);
 
   const level = Math.floor(xp / 100) + 1;
+
+  // Hydration Monitoring State
+  const [waterIntakeToday, setWaterIntakeToday] = useState(1250);
+
+  useEffect(() => {
+    try {
+      const savedWater = localStorage.getItem(STORAGE_KEY_WATER);
+      if (savedWater) setWaterIntakeToday(Number(savedWater));
+    } catch {}
+  }, []);
+
+  const addWater = (amountMl: number) => {
+    setWaterIntakeToday((prev) => {
+      const next = Math.max(0, prev + amountMl);
+      try {
+        localStorage.setItem(STORAGE_KEY_WATER, next.toString());
+      } catch {}
+      return next;
+    });
+    if (amountMl > 0 && soundEnabled) {
+      sounds.playRepSuccess();
+    }
+  };
+
+  const resetWater = () => {
+    setWaterIntakeToday(0);
+    try {
+      localStorage.setItem(STORAGE_KEY_WATER, '0');
+    } catch {}
+  };
+
+  // Isometric Hold Timer for Plank (counts seconds held with good form)
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    const isHold = EXERCISE_CATALOG[selectedExercise]?.isHoldExercise;
+
+    if (isHold && isTracking) {
+      timer = setInterval(() => {
+        // Only count hold time if form is good (spine deviation <= 15 degrees)
+        if (liveAngle <= 15 && activeFaults.length === 0) {
+          setSessionReps((prev) => {
+            const next = prev + 1;
+            const target = targetReps;
+
+            // Spoken milestone every 5 seconds
+            if (next % 5 === 0 && next < target) {
+              if (soundEnabled) sounds.playRepSuccess();
+              coachVoice.speak(`${next} seconds held!`, true);
+            }
+
+            if (next >= target && prev < target) {
+              if (soundEnabled) sounds.playWorkoutComplete();
+              confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+              coachVoice.speak(`Plank complete! ${target} seconds held with rock-solid form!`, true);
+            }
+
+            return next;
+          });
+
+          // Award XP every 5 seconds
+          setXp((prev) => {
+            const newXp = prev + 2;
+            try {
+              localStorage.setItem(
+                STORAGE_KEY_WORKOUT,
+                JSON.stringify({ xp: newXp, streakDays, soundEnabled, voiceCoachEnabled })
+              );
+            } catch {}
+            return newXp;
+          });
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [selectedExercise, isTracking, liveAngle, activeFaults.length, targetReps, soundEnabled, streakDays, voiceCoachEnabled]);
 
   const setSelectedExercise = (exercise: ExerciseKey) => {
     const config = EXERCISE_CATALOG[exercise];
@@ -295,7 +377,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsTracking,
         logMeal,
         removeMeal,
-        setPostureScoreToday
+        setPostureScoreToday,
+        waterIntakeToday,
+        addWater,
+        resetWater
       }}
     >
       {children}

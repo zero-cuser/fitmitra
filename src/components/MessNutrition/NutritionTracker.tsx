@@ -2,24 +2,41 @@
 
 import React, { useState } from 'react';
 import { useWorkout } from '@/context/WorkoutContext';
-import { MESS_MENU_ITEMS, BUDGET_PROTEIN_HACKS, ProteinHack } from '@/data/messMenu';
-import { MessMenuItem } from '@/types/fitness';
-import { Utensils, Flame, Sparkles, Plus, Trash2, Info, X, Zap, DollarSign } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { MESS_MENU_ITEMS, BUDGET_PROTEIN_HACKS } from '@/data/messMenu';
+import { Utensils, Flame, Plus, Trash2, X, DollarSign, Droplets, RotateCcw } from 'lucide-react';
 
 export const NutritionTracker: React.FC = () => {
-  const { loggedMeals, logMeal, removeMeal, caloriesGainedToday, proteinGainedToday } = useWorkout();
+  const {
+    loggedMeals,
+    logMeal,
+    removeMeal,
+    caloriesGainedToday,
+    proteinGainedToday,
+    waterIntakeToday,
+    addWater,
+    resetWater
+  } = useWorkout();
+  const { user } = useAuth();
+
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [isHacksModalOpen, setIsHacksModalOpen] = useState<boolean>(false);
 
-  const categories = ['All', 'Hostel Mess', 'High Protein Hack', 'Student Protein', 'Canteen', 'Breakfast'];
+  const categories = ['All', 'Campus Meals', 'High Protein Hack', 'Student Protein', 'Canteen', 'Breakfast'];
 
   const filteredItems =
     selectedCategory === 'All'
       ? MESS_MENU_ITEMS
       : MESS_MENU_ITEMS.filter((item) => item.category === selectedCategory);
 
-  const dailyProteinTarget = 65; // grams for student maintenance
+  const dailyProteinTarget = 65; // grams for maintenance
   const proteinPercent = Math.min(Math.round((proteinGainedToday / dailyProteinTarget) * 100), 100);
+
+  const targetCalories = user?.targetDailyCalories || 2200;
+  const caloriePercent = Math.min(Math.round((caloriesGainedToday / targetCalories) * 100), 100);
+
+  const targetWater = user?.targetWaterMl || 2500;
+  const waterPercent = Math.min(Math.round((waterIntakeToday / targetWater) * 100), 100);
 
   return (
     <div className="space-y-6">
@@ -30,13 +47,13 @@ export const NutritionTracker: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-2">
               <Utensils className="w-3.5 h-3.5" />
-              <span>Desi Hostel Nutrition Engine</span>
+              <span>Campus Nutrition & Hydration Engine</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Hostel Mess Smart-Logger & Protein Tracker
+              Daily Nutrition & Calorie Tracker
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              Preloaded with Indian mess thalis and canteen food. No salmon or avocado—just realistic campus macros.
+              Preloaded with everyday campus meals, canteen favorites, and high-protein foods. No unrealistic foods—just real student macros.
             </p>
           </div>
 
@@ -49,37 +66,108 @@ export const NutritionTracker: React.FC = () => {
           </button>
         </div>
 
-        {/* Daily Macros Overview Cards */}
+        {/* Daily Macros & Hydration Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-slate-400 font-semibold">Calories Gained Today</span>
-              <Flame className="w-4 h-4 text-amber-400" />
+          
+          {/* Calorie Intake Card */}
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-slate-400 font-semibold">Calories Gained Today</span>
+                <Flame className="w-4 h-4 text-amber-400" />
+              </div>
+              <p className="text-2xl font-black text-white">
+                {caloriesGainedToday} <span className="text-xs font-normal text-slate-500">/ {targetCalories} kcal</span>
+              </p>
             </div>
-            <p className="text-2xl font-black text-white">
-              {caloriesGainedToday} <span className="text-xs font-normal text-slate-500">kcal</span>
-            </p>
-            <span className="text-[10px] text-slate-500">Synced with 7-Day Calorie Balance Chart</span>
+            <div className="mt-3">
+              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  style={{ width: `${caloriePercent}%` }}
+                  className="h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full transition-all duration-500"
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1.5">
+                <span>{caloriePercent}% of daily goal</span>
+                <span>{Math.max(0, targetCalories - caloriesGainedToday)} kcal left</span>
+              </div>
+            </div>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 sm:col-span-2">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-slate-400 font-semibold">
-                Daily Protein Intake ({proteinGainedToday}g / {dailyProteinTarget}g Target)
-              </span>
-              <span className="text-xs font-black text-emerald-400">{proteinPercent}%</span>
+          {/* Protein Intake Card */}
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-slate-400 font-semibold">Daily Protein Intake</span>
+                <span className="text-xs font-black text-emerald-400">{proteinPercent}%</span>
+              </div>
+              <p className="text-2xl font-black text-white">
+                {proteinGainedToday}g <span className="text-xs font-normal text-slate-500">/ {dailyProteinTarget}g target</span>
+              </p>
             </div>
-            <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 mt-2">
-              <div
-                style={{ width: `${proteinPercent}%` }}
-                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500 shadow-sm shadow-emerald-500/50"
-              />
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
-              <span>Hostel Mess Thali Baseline: ~25g</span>
-              <span>Needs +{Math.max(dailyProteinTarget - proteinGainedToday, 0)}g via Sattu/Eggs</span>
+            <div className="mt-3">
+              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  style={{ width: `${proteinPercent}%` }}
+                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500 shadow-sm shadow-emerald-500/50"
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1.5">
+                <span>Standard Meal Base: ~25g</span>
+                <span>+{Math.max(dailyProteinTarget - proteinGainedToday, 0)}g needed</span>
+              </div>
             </div>
           </div>
+
+          {/* Water Hydration Monitoring Card */}
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-500/20 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-cyan-400 font-semibold flex items-center space-x-1">
+                  <Droplets className="w-3.5 h-3.5" />
+                  <span>Hydration Sentinel</span>
+                </span>
+                <span className="text-xs font-black text-cyan-400">{waterPercent}%</span>
+              </div>
+              <p className="text-2xl font-black text-white">
+                {(waterIntakeToday / 1000).toFixed(2)}L <span className="text-xs font-normal text-slate-500">/ {(targetWater / 1000).toFixed(1)}L target</span>
+              </p>
+            </div>
+
+            <div className="mt-2 space-y-2">
+              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  style={{ width: `${waterPercent}%` }}
+                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500 shadow-sm shadow-cyan-500/50"
+                />
+              </div>
+
+              {/* Quick Water Logging Buttons */}
+              <div className="flex items-center space-x-1.5 pt-0.5">
+                <button
+                  onClick={() => addWater(250)}
+                  className="flex-1 py-1 px-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[10px] font-bold text-cyan-400 transition-colors text-center"
+                >
+                  +250ml
+                </button>
+                <button
+                  onClick={() => addWater(500)}
+                  className="flex-1 py-1 px-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 transition-colors text-center"
+                >
+                  +500ml
+                </button>
+                <button
+                  onClick={() => addWater(-250)}
+                  disabled={waterIntakeToday <= 0}
+                  className="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-400 disabled:opacity-40 transition-colors"
+                  title="Undo 250ml"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -153,7 +241,7 @@ export const NutritionTracker: React.FC = () => {
             <div className="py-8 text-center text-slate-500 text-xs">
               <Utensils className="w-8 h-8 mx-auto mb-2 opacity-40" />
               <p>No meals logged yet today.</p>
-              <p className="text-[10px] mt-1">Tap + on any mess item to record your intake.</p>
+              <p className="text-[10px] mt-1">Tap + on any meal item to record your intake.</p>
             </div>
           ) : (
             <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
@@ -206,7 +294,7 @@ export const NutritionTracker: React.FC = () => {
               </div>
               <h3 className="text-2xl font-black tracking-tight">₹100/Day Student Protein Survival Guide</h3>
               <p className="text-xs text-slate-400 mt-1">
-                How Indian hostel students can hit 65g+ daily protein without expensive whey isolate or non-veg mess bills.
+                How students can hit 65g+ daily protein on a budget without expensive whey isolate supplements.
               </p>
             </div>
 

@@ -42,16 +42,16 @@ export const FriendsHub: React.FC = () => {
               <span>Campus Social Network</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Campus Friends & Daily Progress
+              Friends & Daily Progress Hub
             </h3>
             <p className="text-xs text-slate-400 mt-1">
-              Connect with hostel roommates and wing mates to compare daily reps, calories, and posture scores.
+              Connect with friends to compare daily reps, calories, and posture scores.
             </p>
           </div>
 
           <div className="px-3.5 py-2 rounded-2xl bg-slate-950 border border-slate-800 text-xs flex items-center space-x-2 text-slate-300">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span><strong>{friends.filter((f) => f.isOnline).length}</strong> Wing mates active right now</span>
+            <span><strong>{friends.filter((f) => f.isOnline).length}</strong> Friends active right now</span>
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export const FriendsHub: React.FC = () => {
                 setFriendQuery(e.target.value);
                 setAddFeedback(null);
               }}
-              placeholder="Enter student username or wing code (e.g. rahul_sen, aryabhatta_204)..."
+              placeholder="Enter friend username (e.g. rahul_sen, priya_p)..."
               className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-2xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
@@ -120,7 +120,7 @@ export const FriendsHub: React.FC = () => {
                     <h4 className="text-sm font-bold text-white">{friend.name}</h4>
                     <span className="text-[10px] text-emerald-400 font-mono">@{friend.username}</span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{friend.hostelWing}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{friend.hostelWing || 'Fitness Friend'}</p>
                 </div>
               </div>
 
