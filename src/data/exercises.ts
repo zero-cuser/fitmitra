@@ -3,10 +3,10 @@ import { ExerciseConfig, ExerciseKey } from '../types/fitness';
 export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
   squats: {
     id: 'squats',
-    name: 'Bodyweight Squats',
-    shortName: 'Squats',
-    targetMuscles: 'Quads, Glutes & Core',
-    category: 'Lower Body',
+    name: 'Posture Squats (Spine Alignment)',
+    shortName: 'Posture Squats',
+    targetMuscles: 'Erector Spinae, Glutes & Quads',
+    category: 'Posture & Lower Body',
     metricUnit: 'reps',
     defaultTarget: 15,
     calPerRep: 0.32,
@@ -125,5 +125,56 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       'No lumbar hyper-extension (swayback)',
       'Forearms parallel, neck neutral'
     ]
+  },
+  cervicalRetraction: {
+    id: 'cervicalRetraction',
+    name: 'Cervical Retraction (Chin Tuck)',
+    shortName: 'Chin Tuck',
+    targetMuscles: 'Deep Cervical Flexors & Upper Spine',
+    category: 'Posture Correction',
+    metricUnit: 'reps',
+    defaultTarget: 10,
+    calPerRep: 0.15,
+    isHoldExercise: false,
+    upThreshold: 155,
+    downThreshold: 110,
+    instructions: [
+      'Sit or stand tall facing your phone camera at eye level.',
+      'Gently retract your chin straight backward (making a subtle double chin).',
+      'Feel the back of your neck elongate without tilting head up or down.',
+      'Hold the peak alignment momentarily and smoothly release.'
+    ],
+    formChecklist: [
+      'Ears align vertically above shoulder joints',
+      'No downward chin dipping or looking down',
+      'Shoulders stay relaxed away from ears',
+      'Controlled smooth tempo'
+    ]
+  },
+  chestOpener: {
+    id: 'chestOpener',
+    name: 'Standing Scapular & Chest Opener',
+    shortName: 'Chest Opener',
+    targetMuscles: 'Rhomboids, Trapezius & Pectorals',
+    category: 'Posture Correction',
+    metricUnit: 'reps',
+    defaultTarget: 12,
+    calPerRep: 0.25,
+    isHoldExercise: false,
+    upThreshold: 140,
+    downThreshold: 75,
+    instructions: [
+      'Hold arms up with elbows bent at 90° in front of chest.',
+      'Inhale and pull your elbows back, pinching shoulder blades together.',
+      'Feel your chest open and thoracic spine lengthen.',
+      'Exhale and bring elbows back in front smoothly.'
+    ],
+    formChecklist: [
+      'Elbows stay parallel to shoulder height',
+      'Pinch shoulder blades firmly at peak',
+      'Keep core engaged, no excessive lower back arch',
+      'Smooth breathing tempo'
+    ]
   }
 };
+

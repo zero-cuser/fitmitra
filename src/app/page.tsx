@@ -64,9 +64,9 @@ export default function Home() {
     },
     {
       id: 'posture',
-      label: 'Posture Correction',
+      label: 'Study Sentinel',
       icon: <ShieldCheck className="w-4 h-4 text-teal-400" />,
-      badge: 'Mobility'
+      badge: 'Pomodoro'
     },
     {
       id: 'mind',
@@ -129,7 +129,7 @@ export default function Home() {
                   Select Target Bodyweight Exercise
                 </span>
                 <span className="text-[10px] text-emerald-400/90 font-medium">
-                  5 Preset Movements • Real-Time Joint Kinematics
+                  Mobile Posture Correction & Alignment • Real-Time Joint Kinematics
                 </span>
               </div>
               <ExerciseTabs />

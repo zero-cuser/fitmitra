@@ -9,31 +9,34 @@ import { Activity, Shield, Dumbbell, Flame, Zap } from 'lucide-react';
 export const ExerciseTabs: React.FC = () => {
   const { selectedExercise, setSelectedExercise } = useWorkout();
 
-  const exercises: { id: ExerciseKey; icon: React.ReactNode; tag: string }[] = [
+  const exercises: { id: ExerciseKey; icon: React.ReactNode; tag: string; isPosture?: boolean }[] = [
     {
       id: 'squats',
       icon: <Activity className="w-4 h-4 text-emerald-400" />,
-      tag: 'Legs / Core'
+      tag: 'Spine & Posture',
+      isPosture: true
+    },
+    {
+      id: 'cervicalRetraction',
+      icon: <Shield className="w-4 h-4 text-cyan-400" />,
+      tag: 'Fix Tech-Neck',
+      isPosture: true
+    },
+    {
+      id: 'chestOpener',
+      icon: <Zap className="w-4 h-4 text-teal-400" />,
+      tag: 'Desk Opener',
+      isPosture: true
     },
     {
       id: 'pushups',
-      icon: <Dumbbell className="w-4 h-4 text-cyan-400" />,
-      tag: 'Chest / Triceps'
-    },
-    {
-      id: 'jumpingJacks',
-      icon: <Zap className="w-4 h-4 text-yellow-400" />,
-      tag: 'Cardio Burn'
-    },
-    {
-      id: 'lunges',
-      icon: <Flame className="w-4 h-4 text-amber-400" />,
-      tag: 'Quads / Glutes'
+      icon: <Dumbbell className="w-4 h-4 text-blue-400" />,
+      tag: 'Chest & Arms'
     },
     {
       id: 'plank',
-      icon: <Shield className="w-4 h-4 text-teal-400" />,
-      tag: 'Core Isometric'
+      icon: <Flame className="w-4 h-4 text-amber-400" />,
+      tag: 'Core Alignment'
     }
   ];
 

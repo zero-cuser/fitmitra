@@ -503,6 +503,142 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
   };
 };
 
+// 6. MOBILE POSTURE: CERVICAL RETRACTION (CHIN TUCK)
+export const evaluateCervicalRetractionLandmarks = (
+  landmarks: LandmarkPoint[],
+  currentStage: 'up' | 'down',
+  tracker?: ExerciseTrackerState
+): TelemetryResult => {
+  const req = [
+    LANDMARK_INDEX.NOSE,
+    LANDMARK_INDEX.LEFT_EAR,
+    LANDMARK_INDEX.LEFT_SHOULDER
+  ];
+
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.40);
+  if (!inFrame) {
+    if (tracker) tracker.bottomReached = false;
+    return {
+      inFrame: false,
+      angle: 120,
+      stage: currentStage,
+      repCompleted: false,
+      formFaults: [{ joint: 'nose', x: 0.5, y: 0.5, message: 'Position head in front of phone' }],
+      isGoodForm: false,
+      formCue: 'Face camera at eye level'
+    };
+  }
+
+  const nose = landmarks[LANDMARK_INDEX.NOSE];
+  const ear = (landmarks[LANDMARK_INDEX.LEFT_EAR]?.visibility ?? 0.8) >= (landmarks[LANDMARK_INDEX.RIGHT_EAR]?.visibility ?? 0.8)
+    ? landmarks[LANDMARK_INDEX.LEFT_EAR]
+    : landmarks[LANDMARK_INDEX.RIGHT_EAR];
+  const shoulder = (landmarks[LANDMARK_INDEX.LEFT_SHOULDER]?.visibility ?? 0.8) >= (landmarks[LANDMARK_INDEX.RIGHT_SHOULDER]?.visibility ?? 0.8)
+    ? landmarks[LANDMARK_INDEX.LEFT_SHOULDER]
+    : landmarks[LANDMARK_INDEX.RIGHT_SHOULDER];
+
+  const alignmentAngle = calculateAngle(nose, ear, shoulder) || 115;
+  const formFaults: FormFault[] = [];
+
+  let newStage = currentStage;
+  let repCompleted = false;
+  let formCue: string | null = null;
+  const now = Date.now();
+
+  if (alignmentAngle < 110) {
+    newStage = 'down';
+    if (tracker) tracker.bottomReached = true;
+    formCue = 'Good chin tuck! Now slowly release';
+  } else if (alignmentAngle > 125) {
+    newStage = 'up';
+    if (tracker && tracker.bottomReached) {
+      if (now - tracker.lastRepTime > 400) {
+        repCompleted = true;
+        tracker.lastRepTime = now;
+      }
+      tracker.bottomReached = false;
+    }
+  }
+
+  return {
+    inFrame: true,
+    angle: alignmentAngle,
+    stage: newStage,
+    repCompleted,
+    formFaults,
+    isGoodForm: alignmentAngle < 115,
+    formCue
+  };
+};
+
+// 7. MOBILE POSTURE: STANDING SCAPULAR & CHEST OPENER
+export const evaluateChestOpenerLandmarks = (
+  landmarks: LandmarkPoint[],
+  currentStage: 'up' | 'down',
+  tracker?: ExerciseTrackerState
+): TelemetryResult => {
+  const req = [
+    LANDMARK_INDEX.LEFT_SHOULDER,
+    LANDMARK_INDEX.RIGHT_SHOULDER,
+    LANDMARK_INDEX.LEFT_ELBOW,
+    LANDMARK_INDEX.RIGHT_ELBOW
+  ];
+
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.40);
+  if (!inFrame) {
+    if (tracker) tracker.openReached = false;
+    return {
+      inFrame: false,
+      angle: 60,
+      stage: currentStage,
+      repCompleted: false,
+      formFaults: [{ joint: 'shoulder', x: 0.5, y: 0.5, message: 'Position upper body in frame' }],
+      isGoodForm: false,
+      formCue: 'Show shoulders and arms to camera'
+    };
+  }
+
+  const leftShoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
+  const rightShoulder = landmarks[LANDMARK_INDEX.RIGHT_SHOULDER];
+  const leftElbow = landmarks[LANDMARK_INDEX.LEFT_ELBOW];
+  const rightElbow = landmarks[LANDMARK_INDEX.RIGHT_ELBOW];
+
+  const leftChestAngle = calculateAngle(leftElbow, leftShoulder, rightShoulder);
+  const rightChestAngle = calculateAngle(rightElbow, rightShoulder, leftShoulder);
+  const chestSpreadAngle = Math.round((leftChestAngle + rightChestAngle) / 2) || 80;
+
+  const formFaults: FormFault[] = [];
+  let newStage = currentStage;
+  let repCompleted = false;
+  let formCue: string | null = null;
+  const now = Date.now();
+
+  if (chestSpreadAngle > 105) {
+    newStage = 'down';
+    if (tracker) tracker.openReached = true;
+    formCue = 'Shoulder blades pinched! Return to center';
+  } else if (chestSpreadAngle < 80) {
+    newStage = 'up';
+    if (tracker && tracker.openReached) {
+      if (now - tracker.lastRepTime > 400) {
+        repCompleted = true;
+        tracker.lastRepTime = now;
+      }
+      tracker.openReached = false;
+    }
+  }
+
+  return {
+    inFrame: true,
+    angle: chestSpreadAngle,
+    stage: newStage,
+    repCompleted,
+    formFaults,
+    isGoodForm: chestSpreadAngle > 100,
+    formCue
+  };
+};
+
 /**
  * Stateful Biomechanical Kinematic Engine
  * Smooth, forgiving, and responsive.
@@ -542,6 +678,12 @@ export class ExerciseRepEngine {
     switch (exerciseKey) {
       case 'squats':
         result = evaluateSquatLandmarks(landmarks, this.stage, this.tracker);
+        break;
+      case 'cervicalRetraction':
+        result = evaluateCervicalRetractionLandmarks(landmarks, this.stage, this.tracker);
+        break;
+      case 'chestOpener':
+        result = evaluateChestOpenerLandmarks(landmarks, this.stage, this.tracker);
         break;
       case 'pushups':
         result = evaluatePushupLandmarks(landmarks, this.stage, this.tracker);
