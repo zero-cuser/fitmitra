@@ -16,7 +16,8 @@ import {
 import {
   LANDMARK_INDEX,
   evaluateExerciseLandmarks,
-  smoothLandmarksEMA
+  smoothLandmarksEMA,
+  repEngine
 } from './AngleMath';
 import { useWorkout } from '@/context/WorkoutContext';
 import { FormFault, LandmarkPoint } from '@/types/fitness';
@@ -75,6 +76,9 @@ export const CameraView: React.FC = () => {
   const selectedExerciseRef = useRef(selectedExercise);
   useEffect(() => {
     selectedExerciseRef.current = selectedExercise;
+    repEngine.reset(selectedExercise);
+    prevLandmarksRef.current = null;
+    setIsInFrame(false);
   }, [selectedExercise]);
 
   const currentStageRef = useRef(currentStage);
@@ -86,6 +90,8 @@ export const CameraView: React.FC = () => {
   const stopCamera = useCallback(() => {
     isRunningRef.current = false;
     prevLandmarksRef.current = null;
+    setIsInFrame(false);
+    repEngine.reset(selectedExerciseRef.current);
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -273,6 +279,9 @@ export const CameraView: React.FC = () => {
 
   // Start Live Webcam Stream with MediaPipe Hookup
   const startCamera = async () => {
+    repEngine.reset(selectedExerciseRef.current);
+    prevLandmarksRef.current = null;
+    setIsInFrame(false);
     setErrorMessage(null);
     setViewState('requesting');
 
@@ -415,6 +424,7 @@ export const CameraView: React.FC = () => {
   // Start Interactive Simulation Mode
   const startSimulation = () => {
     stopCamera();
+    repEngine.reset(selectedExercise);
     setViewState('simulating');
     setIsInFrame(true);
     setIsTracking(true);

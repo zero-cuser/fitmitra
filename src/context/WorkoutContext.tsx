@@ -5,6 +5,7 @@ import { DailyCalorieRecord, ExerciseKey, FormFault, LoggedMeal, MessMenuItem, T
 import { EXERCISE_CATALOG } from '@/data/exercises';
 import { sounds } from '@/utils/soundEffects';
 import { coachVoice } from '@/utils/voiceCoach';
+import { repEngine } from '@/components/AIPoseCoach/AngleMath';
 import confetti from 'canvas-confetti';
 
 interface WorkoutContextType extends WorkoutState {
@@ -16,6 +17,8 @@ interface WorkoutContextType extends WorkoutState {
   toggleSound: () => void;
   toggleVoiceCoach: () => void;
   activeFaults: FormFault[];
+  isInFrame: boolean;
+  isGoodForm: boolean;
   isTracking: boolean;
   setIsTracking: (tracking: boolean) => void;
   weeklyCalorieHistory: DailyCalorieRecord[];
@@ -69,6 +72,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [voiceCoachEnabled, setVoiceCoachEnabled] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
+  const [isInFrame, setIsInFrame] = useState(false);
+  const [isGoodForm, setIsGoodForm] = useState(false);
   const [postureScoreToday, setPostureScoreToday] = useState(92);
 
   // Nutrition & Weekly Calorie Log
@@ -170,9 +175,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (isHold && isTracking) {
       timer = setInterval(() => {
-        // Only count hold time if form is good (Shoulder-Hip-Ankle alignment stays between 165° and 185°)
-        const isPlankAligned = (liveAngle >= 165 && liveAngle <= 185) || Math.abs(180 - liveAngle) <= 15;
-        if (isPlankAligned && activeFaults.length === 0) {
+        // Only count hold time if user is IN FRAME, is in good horizontal plank posture, and has 0 faults
+        if (isInFrame && isGoodForm && activeFaults.length === 0) {
           setSessionReps((prev) => {
             const next = prev + 1;
             const target = targetReps;
@@ -210,7 +214,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [selectedExercise, isTracking, liveAngle, activeFaults.length, targetReps, soundEnabled, streakDays, voiceCoachEnabled]);
+  }, [selectedExercise, isTracking, isInFrame, isGoodForm, activeFaults.length, targetReps, soundEnabled, streakDays, voiceCoachEnabled]);
 
   const setSelectedExercise = (exercise: ExerciseKey) => {
     const config = EXERCISE_CATALOG[exercise];
@@ -218,9 +222,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSelectedExerciseState(exercise);
     setSessionReps(0);
     setTargetReps(config.defaultTarget);
-    setCurrentStage(exercise === 'plank' ? 'down' : 'up');
+    setCurrentStage(exercise === 'plank' || exercise === 'jumpingJacks' ? 'down' : 'up');
     setLiveAngle(exercise === 'plank' ? 180 : 160);
     setActiveFaults([]);
+    setIsInFrame(false);
+    setIsGoodForm(false);
+    repEngine.reset(exercise);
     coachVoice.speak(`Switched to ${config.shortName}`, true);
   };
 
@@ -262,6 +269,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const handleTelemetry = useCallback(
     (result: TelemetryResult) => {
+      setIsInFrame(result.inFrame);
+      setIsGoodForm(result.isGoodForm);
       setLiveAngle(Math.round(result.angle));
       setActiveFaults(result.formFaults || []);
 
@@ -282,8 +291,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const resetSession = () => {
     setSessionReps(0);
-    setCurrentStage(selectedExercise === 'jumpingJacks' ? 'down' : 'up');
+    setCurrentStage(selectedExercise === 'plank' || selectedExercise === 'jumpingJacks' ? 'down' : 'up');
     setActiveFaults([]);
+    setIsInFrame(false);
+    setIsGoodForm(false);
+    repEngine.reset(selectedExercise);
     coachVoice.speak('Session reset. Ready when you are.', true);
   };
 
@@ -361,6 +373,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         soundEnabled,
         voiceCoachEnabled,
         activeFaults,
+        isInFrame,
+        isGoodForm,
         isTracking,
         weeklyCalorieHistory,
         loggedMeals,

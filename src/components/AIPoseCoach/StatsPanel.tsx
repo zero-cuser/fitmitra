@@ -13,6 +13,8 @@ export const StatsPanel: React.FC = () => {
     liveAngle,
     currentStage,
     activeFaults,
+    isInFrame,
+    isTracking,
     recordRep,
     resetSession
   } = useWorkout();
@@ -125,7 +127,12 @@ export const StatsPanel: React.FC = () => {
         </div>
 
         {/* Active Fault Alert if any */}
-        {activeFaults.length > 0 ? (
+        {isTracking && !isInFrame ? (
+          <div className="mb-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center space-x-2 animate-in fade-in duration-200">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-[11px] font-medium">Position yourself fully in camera frame to track reps.</span>
+          </div>
+        ) : activeFaults.length > 0 ? (
           <div className="mb-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1 animate-in fade-in duration-200">
             <div className="flex items-center space-x-1.5 font-bold text-rose-400">
               <AlertTriangle className="w-4 h-4" />
