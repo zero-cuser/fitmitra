@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import {
   LANDMARK_INDEX,
-  evaluateExerciseLandmarks
+  evaluateExerciseLandmarks,
+  smoothLandmarksEMA
 } from './AngleMath';
 import { useWorkout } from '@/context/WorkoutContext';
 import { FormFault, LandmarkPoint } from '@/types/fitness';
@@ -59,6 +60,7 @@ export const CameraView: React.FC = () => {
   const poseRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
   const isRunningRef = useRef(false);
+  const prevLandmarksRef = useRef<LandmarkPoint[] | null>(null);
 
   // Viewport State Machine
   const [viewState, setViewState] = useState<ViewportState>('idle');
@@ -83,6 +85,7 @@ export const CameraView: React.FC = () => {
   // Clean shutdown helper
   const stopCamera = useCallback(() => {
     isRunningRef.current = false;
+    prevLandmarksRef.current = null;
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current);
       animFrameRef.current = null;
@@ -114,25 +117,42 @@ export const CameraView: React.FC = () => {
     };
   }, [stopCamera]);
 
-  // Draw dynamic skeletal overlay with color coding and contextual tooltip labels
+  // Draw dynamic skeletal overlay with neon glow, offending joint highlight, and floating tooltip badges
   const drawPoseFrame = useCallback(
     (
       ctx: CanvasRenderingContext2D,
       width: number,
       height: number,
       landmarks: LandmarkPoint[],
-      formFaults: FormFault[]
+      formFaults: FormFault[],
+      inFrame: boolean
     ) => {
       ctx.clearRect(0, 0, width, height);
 
+      if (!inFrame) {
+        // Render prominent semi-transparent guidance banner across canvas if user is out of frame
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+        ctx.fillRect(width * 0.1, height * 0.38, width * 0.8, 64);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(width * 0.1, height * 0.38, width * 0.8, 64);
+        ctx.fillStyle = '#fef3c7';
+        ctx.font = 'bold 18px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('⚠️ Step back to fit in frame (Confidence > 65% Required)', width / 2, height * 0.38 + 39);
+        ctx.restore();
+        return;
+      }
+
       const faultyJointNames = new Set(formFaults.map((f) => f.joint.toLowerCase()));
 
-      // 1. Draw Skeleton Lines
+      // 1. Draw Vector Skeleton Lines with Neon Glow
       SKELETON_CONNECTIONS.forEach(([idxA, idxB]) => {
         const ptA = landmarks[idxA];
         const ptB = landmarks[idxB];
         if (!ptA || !ptB) return;
-        if ((ptA.visibility ?? 1) < 0.4 || (ptB.visibility ?? 1) < 0.4) return;
+        if ((ptA.visibility ?? 1) < 0.45 || (ptB.visibility ?? 1) < 0.45) return;
 
         let isFaulty = false;
         if (
@@ -156,17 +176,21 @@ export const CameraView: React.FC = () => {
 
         const strokeColor = isFaulty ? COLOR_FAULT : COLOR_GOOD;
 
+        ctx.save();
         ctx.beginPath();
         // Mirror x coordinates to match mirrored video (-scale-x-100)
         ctx.moveTo((1 - ptA.x) * width, ptA.y * height);
         ctx.lineTo((1 - ptB.x) * width, ptB.y * height);
-        ctx.lineWidth = isFaulty ? 5 : 4;
+        ctx.lineWidth = isFaulty ? 6 : 4;
         ctx.strokeStyle = strokeColor;
         ctx.lineCap = 'round';
+        ctx.shadowColor = strokeColor;
+        ctx.shadowBlur = isFaulty ? 14 : 10;
         ctx.stroke();
+        ctx.restore();
       });
 
-      // 2. Draw Landmark Joint Nodes
+      // 2. Draw Landmark Joint Nodes with Radial Glow
       const TRACKED_JOINTS = [
         { idx: LANDMARK_INDEX.LEFT_SHOULDER, name: 'shoulder' },
         { idx: LANDMARK_INDEX.RIGHT_SHOULDER, name: 'shoulder' },
@@ -184,42 +208,52 @@ export const CameraView: React.FC = () => {
 
       TRACKED_JOINTS.forEach(({ idx, name }) => {
         const pt = landmarks[idx];
-        if (!pt || (pt.visibility ?? 1) < 0.4) return;
+        if (!pt || (pt.visibility ?? 1) < 0.45) return;
 
         const isFaulty = faultyJointNames.has(name);
         const screenX = (1 - pt.x) * width;
         const screenY = pt.y * height;
+        const nodeColor = isFaulty ? COLOR_FAULT : COLOR_GOOD;
 
-        // Outer glow
+        ctx.save();
+        // Outer glowing node
         ctx.beginPath();
         ctx.arc(screenX, screenY, isFaulty ? 9 : 7, 0, Math.PI * 2);
-        ctx.fillStyle = isFaulty ? COLOR_FAULT : COLOR_GOOD;
+        ctx.fillStyle = nodeColor;
+        ctx.shadowColor = nodeColor;
+        ctx.shadowBlur = isFaulty ? 16 : 10;
         ctx.fill();
 
-        // Inner white center
+        // Inner solid white core
+        ctx.shadowBlur = 0;
         ctx.beginPath();
         ctx.arc(screenX, screenY, 3, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
+        ctx.restore();
       });
 
-      // 3. Float Contextual Form Correction Tooltips Next to Offending Joints
+      // 3. Render Floating Contextual Tooltip Badges Near Offending Joints
       formFaults.forEach((fault) => {
         const screenX = (1 - fault.x) * width;
         const screenY = fault.y * height;
 
         ctx.save();
-        ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.font = 'bold 13px Inter, -apple-system, sans-serif';
         const text = `⚠️ ${fault.message}`;
         const textMetrics = ctx.measureText(text);
-        const padding = 7;
-        const boxWidth = textMetrics.width + padding * 2;
-        const boxHeight = 26;
+        const paddingX = 12;
+        const paddingY = 8;
+        const boxWidth = textMetrics.width + paddingX * 2;
+        const boxHeight = 32;
 
-        const boxX = Math.min(Math.max(screenX + 14, 10), width - boxWidth - 10);
-        const boxY = Math.min(Math.max(screenY - 14, 25), height - boxHeight - 10);
+        const boxX = Math.min(Math.max(screenX + 16, 12), width - boxWidth - 12);
+        const boxY = Math.min(Math.max(screenY - 16, 32), height - boxHeight - 12);
 
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.94)';
+        // Glowing red/amber badge shadow
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.7)';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.96)';
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -227,8 +261,10 @@ export const CameraView: React.FC = () => {
         ctx.fill();
         ctx.stroke();
 
+        // Badge label text
+        ctx.shadowBlur = 0;
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(text, boxX + padding, boxY + 17);
+        ctx.fillText(text, boxX + paddingX, boxY + 21);
         ctx.restore();
       });
     },
@@ -287,8 +323,8 @@ export const CameraView: React.FC = () => {
             smoothLandmarks: true,
             enableSegmentation: false,
             smoothSegmentation: false,
-            minDetectionConfidence: 0.55,
-            minTrackingConfidence: 0.55
+            minDetectionConfidence: 0.65, // Enforce confidence > 0.65
+            minTrackingConfidence: 0.65
           });
 
           pose.onResults((results: any) => {
@@ -302,24 +338,36 @@ export const CameraView: React.FC = () => {
             const height = canvas.height;
 
             if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+              // 1. Exponential Moving Average (EMA) Landmark Smoothing
+              const smoothed = smoothLandmarksEMA(
+                results.poseLandmarks,
+                prevLandmarksRef.current,
+                0.6
+              );
+              prevLandmarksRef.current = smoothed;
+
+              // 2. Exercise State Machine & Angle Calculation
               const evalResult = evaluateExerciseLandmarks(
                 selectedExerciseRef.current,
-                results.poseLandmarks,
+                smoothed,
                 currentStageRef.current
               );
 
               setIsInFrame(evalResult.inFrame);
 
+              // 3. Dynamic Vector Skeleton & Tooltip Overlay
               drawPoseFrame(
                 ctx,
                 width,
                 height,
-                results.poseLandmarks,
-                evalResult.formFaults || []
+                smoothed,
+                evalResult.formFaults || [],
+                evalResult.inFrame
               );
 
               handleTelemetry(evalResult);
             } else {
+              prevLandmarksRef.current = null;
               setIsInFrame(false);
               ctx.clearRect(0, 0, width, height);
             }
@@ -558,7 +606,8 @@ export const CameraView: React.FC = () => {
                 width,
                 height,
                 syntheticLandmarks,
-                evalResult.formFaults || []
+                evalResult.formFaults || [],
+                true
               );
 
               handleTelemetry(evalResult);
@@ -594,6 +643,19 @@ export const CameraView: React.FC = () => {
           viewState === 'active' || viewState === 'simulating' ? 'opacity-100' : 'opacity-0'
         }`}
       />
+
+      {/* Step back to fit in frame overlay when user is out of frame or confidence <= 0.65 */}
+      {viewState === 'active' && !isInFrame && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-200">
+          <div className="flex items-center space-x-2.5 px-5 py-3 rounded-2xl bg-amber-500 text-black font-extrabold text-sm shadow-2xl shadow-amber-500/30 border border-amber-300 animate-pulse">
+            <UserX className="w-5 h-5 stroke-[2.5]" />
+            <span>Step back to fit in frame</span>
+          </div>
+          <p className="text-xs text-amber-200 font-medium mt-2 bg-slate-900/90 px-3 py-1 rounded-full border border-amber-500/20">
+            Full body &amp; active joints must be visible (Confidence &gt; 65%)
+          </p>
+        </div>
+      )}
 
       {/* 3. Sleek Minimalist Idle State */}
       {viewState === 'idle' && (
@@ -684,12 +746,12 @@ export const CameraView: React.FC = () => {
               {viewState === 'active' && (
                 <span className="text-[10px] text-slate-400 pl-1 border-l border-slate-800">
                   {isInFrame ? (
-                    <span className="text-emerald-400 flex items-center gap-1">
-                      <UserCheck className="w-3 h-3 inline" /> In Frame
+                    <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                      <UserCheck className="w-3 h-3 inline" /> In Frame (&gt;65%)
                     </span>
                   ) : (
-                    <span className="text-amber-400 flex items-center gap-1">
-                      <UserX className="w-3 h-3 inline" /> Step Back
+                    <span className="text-amber-400 flex items-center gap-1 font-bold animate-pulse">
+                      <UserX className="w-3 h-3 inline" /> Step back to fit in frame
                     </span>
                   )}
                 </span>

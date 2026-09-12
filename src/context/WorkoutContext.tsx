@@ -170,8 +170,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (isHold && isTracking) {
       timer = setInterval(() => {
-        // Only count hold time if form is good (spine deviation <= 15 degrees)
-        if (liveAngle <= 15 && activeFaults.length === 0) {
+        // Only count hold time if form is good (Shoulder-Hip-Ankle alignment stays between 165° and 185°)
+        const isPlankAligned = (liveAngle >= 165 && liveAngle <= 185) || Math.abs(180 - liveAngle) <= 15;
+        if (isPlankAligned && activeFaults.length === 0) {
           setSessionReps((prev) => {
             const next = prev + 1;
             const target = targetReps;
@@ -218,7 +219,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSessionReps(0);
     setTargetReps(config.defaultTarget);
     setCurrentStage(exercise === 'plank' ? 'down' : 'up');
-    setLiveAngle(exercise === 'plank' ? 0 : 160);
+    setLiveAngle(exercise === 'plank' ? 180 : 160);
     setActiveFaults([]);
     coachVoice.speak(`Switched to ${config.shortName}`, true);
   };

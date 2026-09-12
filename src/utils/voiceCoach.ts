@@ -5,7 +5,7 @@
 
 class VoiceCoach {
   private lastSpokenTime = 0;
-  private readonly throttleMs = 3800; // 3.8 second lockout between form cues
+  private readonly throttleMs = 4000; // Strictly >= 4.0 seconds lockout between form warnings
   private enabled = true;
 
   setEnabled(enabled: boolean) {
