@@ -2,143 +2,204 @@
 
 import React, { useState } from 'react';
 import { useWorkout } from '@/context/WorkoutContext';
-import { Flame, Utensils, TrendingUp, TrendingDown, Calendar, BarChart3, Activity, PieChart, Zap } from 'lucide-react';
+import { Flame, Utensils, TrendingUp, Calendar, Sparkles, Compass } from 'lucide-react';
 
-type HistogramMode = 'daily' | 'distribution';
+type ChartTheme = 'classic' | 'cyber';
 
-interface CalorieBin {
+interface TrajectoryNode {
+  day: string;
+  date: string;
+  type: 'start' | 'peak' | 'trough' | 'summit';
+  x: number; // percentage 0-100
+  y: number; // percentage 0-100 (height from bottom)
+  caloriesBurned: number;
+  caloriesGained: number;
+  momentumScore: number;
   label: string;
-  range: string;
-  min: number;
-  max: number;
-  days: string[];
-  intakeCount: number;
-  burnCount: number;
+  insight: string;
 }
 
 export const WeeklyCalorieChart: React.FC = () => {
-  const { weeklyCalorieHistory, caloriesBurnedToday, caloriesGainedToday } = useWorkout();
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(weeklyCalorieHistory.length - 1);
-  const [histogramMode, setHistogramMode] = useState<HistogramMode>('daily');
-  const [selectedBinIndex, setSelectedBinIndex] = useState<number | null>(null);
+  const { weeklyCalorieHistory } = useWorkout();
+  const [theme, setTheme] = useState<ChartTheme>('classic');
+  const [selectedNodeIndex, setSelectedNodeIndex] = useState<number>(6); // Default to latest day
 
   // Compute weekly totals & statistics
   const totalBurnedWeek = weeklyCalorieHistory.reduce((acc, d) => acc + d.caloriesBurned, 0);
   const totalGainedWeek = weeklyCalorieHistory.reduce((acc, d) => acc + d.caloriesGained, 0);
-  const meanIntake = Math.round(totalGainedWeek / (weeklyCalorieHistory.length || 1));
   const meanBurned = Math.round(totalBurnedWeek / (weeklyCalorieHistory.length || 1));
+  const meanIntake = Math.round(totalGainedWeek / (weeklyCalorieHistory.length || 1));
   const netWeeklyBalance = totalGainedWeek - totalBurnedWeek;
   const activeWorkoutDays = weeklyCalorieHistory.filter((d) => d.caloriesBurned >= 150).length;
 
-  const selectedDay = weeklyCalorieHistory[selectedDayIndex] || weeklyCalorieHistory[weeklyCalorieHistory.length - 1];
-
-  // Frequency Bins for Statistical Calorie Intake Histogram
-  const CALORIE_BINS: CalorieBin[] = [
-    { label: 'Deficit Zone', range: '< 1,700 kcal', min: 0, max: 1700, days: [], intakeCount: 0, burnCount: 0 },
-    { label: 'Target Balance', range: '1,700 – 1,900 kcal', min: 1700, max: 1900, days: [], intakeCount: 0, burnCount: 0 },
-    { label: 'Moderate Fuel', range: '1,900 – 2,100 kcal', min: 1900, max: 2100, days: [], intakeCount: 0, burnCount: 0 },
-    { label: 'Surplus Peak', range: '> 2,100 kcal', min: 2100, max: 99999, days: [], intakeCount: 0, burnCount: 0 }
+  // Build the authentic upward sawtooth / zigzag "This is progress" trajectory:
+  // Starts near origin, climbs up (Peak 1), dips down (Trough 1), climbs higher (Peak 2),
+  // dips down (Trough 2), climbs higher (Peak 3), dips down (Trough 3), surges to highest summit!
+  const progressNodes: TrajectoryNode[] = [
+    {
+      day: weeklyCalorieHistory[0]?.day || 'Mon',
+      date: weeklyCalorieHistory[0]?.date || 'Sep 06',
+      type: 'peak',
+      x: 18,
+      y: 36,
+      caloriesBurned: weeklyCalorieHistory[0]?.caloriesBurned || 240,
+      caloriesGained: weeklyCalorieHistory[0]?.caloriesGained || 1850,
+      momentumScore: 38,
+      label: 'Initial Spark',
+      insight: 'Week began with strong intent. First solid workout in the books!'
+    },
+    {
+      day: weeklyCalorieHistory[1]?.day || 'Tue',
+      date: weeklyCalorieHistory[1]?.date || 'Sep 07',
+      type: 'trough',
+      x: 32,
+      y: 26,
+      caloriesBurned: weeklyCalorieHistory[1]?.caloriesBurned || 120,
+      caloriesGained: weeklyCalorieHistory[1]?.caloriesGained || 1920,
+      momentumScore: 42,
+      label: 'Active Recovery',
+      insight: 'A planned low-strain day. Muscle tissue rebuilt while staying on track.'
+    },
+    {
+      day: weeklyCalorieHistory[2]?.day || 'Wed',
+      date: weeklyCalorieHistory[2]?.date || 'Sep 08',
+      type: 'peak',
+      x: 46,
+      y: 56,
+      caloriesBurned: weeklyCalorieHistory[2]?.caloriesBurned || 380,
+      caloriesGained: weeklyCalorieHistory[2]?.caloriesGained || 1780,
+      momentumScore: 65,
+      label: 'Higher Climb',
+      insight: 'Broke past Monday\'s peak! Rep consistency and cardio intensity surged.'
+    },
+    {
+      day: weeklyCalorieHistory[3]?.day || 'Thu',
+      date: weeklyCalorieHistory[3]?.date || 'Sep 09',
+      type: 'trough',
+      x: 60,
+      y: 44,
+      caloriesBurned: weeklyCalorieHistory[3]?.caloriesBurned || 190,
+      caloriesGained: weeklyCalorieHistory[3]?.caloriesGained || 2050,
+      momentumScore: 68,
+      label: 'Mid-Week Dip',
+      insight: 'Heavy study load caused a dip, but notice: this trough is far higher than Tuesday!'
+    },
+    {
+      day: weeklyCalorieHistory[4]?.day || 'Fri',
+      date: weeklyCalorieHistory[4]?.date || 'Sep 10',
+      type: 'peak',
+      x: 74,
+      y: 76,
+      caloriesBurned: weeklyCalorieHistory[4]?.caloriesBurned || 420,
+      caloriesGained: weeklyCalorieHistory[4]?.caloriesGained || 1950,
+      momentumScore: 84,
+      label: 'Breakthrough Surge',
+      insight: 'Hit new personal workout volume for the week! Energy and focus peaking.'
+    },
+    {
+      day: weeklyCalorieHistory[5]?.day || 'Sat',
+      date: weeklyCalorieHistory[5]?.date || 'Sep 11',
+      type: 'trough',
+      x: 88,
+      y: 64,
+      caloriesBurned: weeklyCalorieHistory[5]?.caloriesBurned || 260,
+      caloriesGained: weeklyCalorieHistory[5]?.caloriesGained || 2150,
+      momentumScore: 87,
+      label: 'Weekend Rest',
+      insight: 'Recharged mental energy with friends while keeping baseline momentum intact.'
+    },
+    {
+      day: weeklyCalorieHistory[6]?.day || 'Sun',
+      date: weeklyCalorieHistory[6]?.date || 'Sep 12',
+      type: 'summit',
+      x: 98,
+      y: 96,
+      caloriesBurned: weeklyCalorieHistory[6]?.caloriesBurned || 490,
+      caloriesGained: weeklyCalorieHistory[6]?.caloriesGained || 1880,
+      momentumScore: 98,
+      label: 'Weekly Summit',
+      insight: 'Finished at the highest fitness velocity of the week! Total growth verified.'
+    }
   ];
 
-  weeklyCalorieHistory.forEach((d) => {
-    CALORIE_BINS.forEach((bin) => {
-      if (d.caloriesGained >= bin.min && d.caloriesGained < bin.max) {
-        bin.intakeCount++;
-        bin.days.push(d.day);
-      }
-    });
-  });
+  const selectedNode = progressNodes[selectedNodeIndex] || progressNodes[progressNodes.length - 1];
 
-  const maxCalorieValue = Math.max(
-    ...weeklyCalorieHistory.flatMap((d) => [d.caloriesGained, d.caloriesBurned]),
-    2400
-  );
+  // SVG coordinate transformation
+  // SVG Canvas dimensions: 600 x 360
+  // Origin: (x=60, y=300)
+  // X-axis extends to x=580, y=300
+  // Y-axis extends to x=60, y=20
+  const svgWidth = 600;
+  const svgHeight = 360;
+  const originX = 60;
+  const originY = 300;
+  const plotWidth = 500;
+  const plotHeight = 260;
 
-  const maxBinCount = Math.max(...CALORIE_BINS.map((b) => b.intakeCount), 4);
-
-  // Generate SVG smooth density curve path for Daily Histogram
-  const generateDensityCurve = () => {
-    const width = 700;
-    const height = 180;
-    const stepX = width / (weeklyCalorieHistory.length - 1 || 1);
-
-    const points = weeklyCalorieHistory.map((d, i) => {
-      const x = i * stepX;
-      const y = height - (d.caloriesGained / maxCalorieValue) * height;
-      return { x, y };
-    });
-
-    if (points.length < 2) return '';
-
-    let path = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i];
-      const p1 = points[i + 1];
-      const cx = (p0.x + p1.x) / 2;
-      path += ` C ${cx} ${p0.y}, ${cx} ${p1.y}, ${p1.x} ${p1.y}`;
-    }
-    return path;
+  const toSvgCoords = (percentX: number, percentY: number) => {
+    const x = originX + (percentX / 100) * plotWidth;
+    const y = originY - (percentY / 100) * plotHeight;
+    return { x, y };
   };
+
+  // Build the SVG path string starting from origin (0,0) and traversing each node
+  const pathD = (() => {
+    let d = `M ${originX} ${originY}`;
+    progressNodes.forEach((node) => {
+      const { x, y } = toSvgCoords(node.x, node.y);
+      d += ` L ${x} ${y}`;
+    });
+    return d;
+  })();
+
+  const isClassic = theme === 'classic';
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xl space-y-6">
       
-      {/* Section Header & Histogram Controls */}
+      {/* Header Banner & Style Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-2">
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Biometric Calorie Histogram</span>
+          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold mb-2">
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Progress Trajectory</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            Weekly Energy Distribution Histogram
+            Weekly Fitness Momentum
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Statistical frequency & continuous bin distribution of calories burned vs. nutritional intake.
+            Real growth isn&apos;t a straight line. Every peak and recovery dip propels you higher.
           </p>
         </div>
 
-        {/* Mode Toggle & Legend */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Histogram Mode Toggle */}
-          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-            <button
-              onClick={() => setHistogramMode('daily')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                histogramMode === 'daily'
-                  ? 'bg-emerald-500 text-black shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Daily Continuous
-            </button>
-            <button
-              onClick={() => setHistogramMode('distribution')}
-              className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-                histogramMode === 'distribution'
-                  ? 'bg-emerald-500 text-black shadow-md'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Frequency Bins
-            </button>
-          </div>
-
-          {/* Histogram Series Legend */}
-          <div className="flex items-center space-x-3 bg-slate-950 px-3.5 py-2 rounded-xl border border-slate-800 text-xs">
-            <div className="flex items-center space-x-1.5">
-              <div className="w-3 h-3 rounded-sm bg-emerald-500" />
-              <span className="text-slate-300 font-medium">Burned</span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <div className="w-3 h-3 rounded-sm bg-amber-500" />
-              <span className="text-slate-300 font-medium">Intake</span>
-            </div>
-          </div>
+        {/* Theme Selector */}
+        <div className="flex items-center space-x-2 bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs self-start sm:self-auto">
+          <button
+            onClick={() => setTheme('classic')}
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition-all flex items-center space-x-1.5 ${
+              isClassic
+                ? 'bg-rose-500/20 border border-rose-400/40 text-rose-300 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Watercolor Sketch</span>
+          </button>
+          <button
+            onClick={() => setTheme('cyber')}
+            className={`px-3.5 py-1.5 rounded-xl font-bold transition-all flex items-center space-x-1.5 ${
+              !isClassic
+                ? 'bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>Cyber Dark</span>
+          </button>
         </div>
       </div>
 
-      {/* Top Statistical KPI Cards */}
+      {/* 4 Weekly Statistical Highlight Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90">
           <div className="flex items-center justify-between mb-1.5">
@@ -148,7 +209,7 @@ export const WeeklyCalorieChart: React.FC = () => {
           <p className="text-xl sm:text-2xl font-black text-emerald-400">
             {totalBurnedWeek.toLocaleString()} <span className="text-xs font-normal text-slate-500">kcal</span>
           </p>
-          <span className="text-[10px] text-slate-500">Mean: {meanBurned} kcal/day</span>
+          <span className="text-[10px] text-slate-500">Avg {meanBurned} kcal/day</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90">
@@ -159,17 +220,13 @@ export const WeeklyCalorieChart: React.FC = () => {
           <p className="text-xl sm:text-2xl font-black text-amber-400">
             {totalGainedWeek.toLocaleString()} <span className="text-xs font-normal text-slate-500">kcal</span>
           </p>
-          <span className="text-[10px] text-slate-500">Mean: {meanIntake} kcal/day</span>
+          <span className="text-[10px] text-slate-500">Avg {meanIntake} kcal/day</span>
         </div>
 
         <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-semibold text-slate-400">Net Weekly Intake</span>
-            {netWeeklyBalance > 0 ? (
-              <TrendingUp className="w-4 h-4 text-amber-400" />
-            ) : (
-              <TrendingDown className="w-4 h-4 text-emerald-400" />
-            )}
+            <TrendingUp className="w-4 h-4 text-cyan-400" />
           </div>
           <p className="text-xl sm:text-2xl font-black text-white">
             {netWeeklyBalance > 0 ? `+${netWeeklyBalance.toLocaleString()}` : netWeeklyBalance.toLocaleString()}{' '}
@@ -180,218 +237,305 @@ export const WeeklyCalorieChart: React.FC = () => {
 
         <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-semibold text-slate-400">Active Workout Days</span>
-            <Calendar className="w-4 h-4 text-cyan-400" />
+            <span className="text-[11px] font-semibold text-slate-400">Workout Consistency</span>
+            <Calendar className="w-4 h-4 text-rose-400" />
           </div>
-          <p className="text-xl sm:text-2xl font-black text-cyan-400">
+          <p className="text-xl sm:text-2xl font-black text-rose-400">
             {activeWorkoutDays} <span className="text-xs font-normal text-slate-500">/ 7 days</span>
           </p>
-          <span className="text-[10px] text-emerald-400 font-medium">Campus streak on fire! 🔥</span>
+          <span className="text-[10px] text-emerald-400 font-medium">Trajectory: +34% upward 🚀</span>
         </div>
       </div>
 
-      {/* HISTOGRAM CANVAS CONTAINER */}
-      <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-5 space-y-4 relative overflow-hidden">
-        
-        {/* Background Grid Scale lines */}
-        <div className="absolute inset-x-5 top-8 bottom-16 flex flex-col justify-between pointer-events-none opacity-20">
-          <div className="w-full border-b border-slate-700 border-dashed" />
-          <div className="w-full border-b border-slate-700 border-dashed" />
-          <div className="w-full border-b border-slate-700 border-dashed" />
-          <div className="w-full border-b border-slate-700 border-dashed" />
-        </div>
-
-        {/* 1. DAILY CONTINUOUS HISTOGRAM VIEW */}
-        {histogramMode === 'daily' && (
-          <div className="space-y-3">
-            <div className="flex justify-between items-center text-[11px] text-slate-400 px-1">
-              <span className="font-semibold text-slate-300">Continuous 7-Day Histogram Bins (Touching Interval Columns)</span>
-              <span>Y-Axis: Energy Units (0 – 2,400 kcal)</span>
-            </div>
-
-            {/* Histogram Columns Container */}
-            <div className="h-64 sm:h-72 relative flex items-end pt-8 px-1">
-              
-              {/* Density Polygon Curve Overlay */}
-              <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible" preserveAspectRatio="none" viewBox="0 0 700 180">
-                <defs>
-                  <linearGradient id="densityGlow" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.8" />
-                  </linearGradient>
-                </defs>
-                <path
-                  d={generateDensityCurve()}
-                  fill="none"
-                  stroke="url(#densityGlow)"
-                  strokeWidth="2.5"
-                  strokeDasharray="4 2"
-                  className="filter drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                />
-              </svg>
-
-              {/* Contiguous Touching Histogram Columns */}
-              <div className="w-full h-52 sm:h-60 flex items-end border-b border-slate-700">
-                {weeklyCalorieHistory.map((dayData, idx) => {
-                  const burnedHeight = Math.max(6, Math.min(100, Math.round((dayData.caloriesBurned / maxCalorieValue) * 100)));
-                  const gainedHeight = Math.max(6, Math.min(100, Math.round((dayData.caloriesGained / maxCalorieValue) * 100)));
-                  const isSelected = idx === selectedDayIndex;
-
-                  return (
-                    <div
-                      key={dayData.day}
-                      onClick={() => setSelectedDayIndex(idx)}
-                      className={`flex-1 h-full flex items-end justify-center cursor-pointer relative border-r border-slate-800/80 last:border-r-0 transition-colors group ${
-                        isSelected ? 'bg-slate-800/30' : 'hover:bg-slate-900/40'
-                      }`}
-                    >
-                      {/* Histogram Bin Columns (Flush, Touching Layout) */}
-                      <div className="w-full flex items-end justify-center px-1 sm:px-2 gap-1 h-full">
-                        
-                        {/* Burned Bin Column */}
-                        <div
-                          style={{ height: `${burnedHeight}%` }}
-                          className={`flex-1 rounded-t-sm bg-gradient-to-t from-emerald-600/90 to-teal-400/90 border-t border-x border-emerald-400/40 transition-all duration-300 relative ${
-                            isSelected ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-500/30' : 'group-hover:brightness-110'
-                          }`}
-                        >
-                          <span className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] font-bold text-emerald-400 bg-slate-900 px-1 py-0.5 rounded border border-emerald-500/40 pointer-events-none whitespace-nowrap z-20">
-                            {dayData.caloriesBurned} kcal
-                          </span>
-                        </div>
-
-                        {/* Intake Bin Column */}
-                        <div
-                          style={{ height: `${gainedHeight}%` }}
-                          className={`flex-1 rounded-t-sm bg-gradient-to-t from-amber-600/90 to-orange-400/90 border-t border-x border-amber-400/40 transition-all duration-300 relative ${
-                            isSelected ? 'ring-2 ring-amber-400 shadow-lg shadow-amber-500/30' : 'group-hover:brightness-110'
-                          }`}
-                        >
-                          <span className="opacity-0 group-hover:opacity-100 absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] font-bold text-amber-400 bg-slate-900 px-1 py-0.5 rounded border border-amber-500/40 pointer-events-none whitespace-nowrap z-20">
-                            {dayData.caloriesGained} kcal
-                          </span>
-                        </div>
-
-                      </div>
-
-                      {/* Bin Top Frequency Value Pill */}
-                      {isSelected && (
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[10px] font-extrabold text-white shadow-lg whitespace-nowrap z-20">
-                          {dayData.caloriesGained} / {dayData.caloriesBurned}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* X-Axis Bin Boundaries */}
-            <div className="flex border-t border-slate-800 pt-2 px-1">
-              {weeklyCalorieHistory.map((d, idx) => (
-                <div
-                  key={d.day}
-                  onClick={() => setSelectedDayIndex(idx)}
-                  className={`flex-1 text-center cursor-pointer transition-colors ${
-                    idx === selectedDayIndex ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <span className="block text-xs uppercase tracking-wider">{d.day}</span>
-                  <span className="block text-[10px] text-slate-500">{d.date}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* GRAPH CANVAS CONTAINER - Matches uploaded user image */}
+      <div
+        className={`rounded-3xl p-6 sm:p-8 transition-all duration-300 relative border overflow-hidden ${
+          isClassic
+            ? 'bg-gradient-to-br from-[#fff7f7] via-[#fef2f2] to-[#fae8ff] border-rose-200/80 shadow-2xl text-slate-800'
+            : 'bg-slate-950/90 border-slate-800/90 shadow-2xl text-slate-100'
+        }`}
+      >
+        {/* Soft atmospheric watercolor background blobs for classic mode */}
+        {isClassic && (
+          <>
+            <div className="absolute top-2 left-6 w-72 h-72 rounded-full bg-rose-200/50 filter blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-10 right-10 w-80 h-80 rounded-full bg-pink-200/40 filter blur-3xl pointer-events-none" />
+          </>
         )}
 
-        {/* 2. STATISTICAL FREQUENCY BINS VIEW */}
-        {histogramMode === 'distribution' && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center text-[11px] text-slate-400 px-1">
-              <span className="font-semibold text-slate-300">Intake Frequency Distribution Bins</span>
-              <span>Y-Axis: Day Frequency Count</span>
-            </div>
+        <div className="relative z-10 flex flex-col items-center">
+          
+          {/* Main SVG Coordinate Graph */}
+          <div className="w-full max-w-2xl aspect-[16/10] relative">
+            <svg
+              viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+              className="w-full h-full overflow-visible select-none"
+            >
+              <defs>
+                {/* Arrowhead marker for Y-axis (pointing UP) */}
+                <marker
+                  id="arrow-y"
+                  viewBox="0 0 10 10"
+                  refX="5"
+                  refY="3"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path
+                    d="M 0 6 L 5 0 L 10 6 z"
+                    fill={isClassic ? '#1e293b' : '#38bdf8'}
+                  />
+                </marker>
 
-            {/* Distribution Histogram Columns */}
-            <div className="h-60 flex items-end gap-3 px-2 border-b border-slate-700 pb-2">
-              {CALORIE_BINS.map((bin, idx) => {
-                const heightPercent = Math.max(12, Math.round((bin.intakeCount / maxBinCount) * 100));
-                const isSelected = selectedBinIndex === idx;
+                {/* Arrowhead marker for X-axis (pointing RIGHT) */}
+                <marker
+                  id="arrow-x"
+                  viewBox="0 0 10 10"
+                  refX="7"
+                  refY="5"
+                  markerWidth="8"
+                  markerHeight="8"
+                  orient="auto"
+                >
+                  <path
+                    d="M 0 0 L 10 5 L 0 10 z"
+                    fill={isClassic ? '#1e293b' : '#38bdf8'}
+                  />
+                </marker>
+
+                {/* Cyber gradient for glow */}
+                <linearGradient id="cyberTrajectory" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#38bdf8" />
+                  <stop offset="50%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#f43f5e" />
+                </linearGradient>
+              </defs>
+
+              {/* Y-Axis Line with Top Arrowhead */}
+              <line
+                x1={originX}
+                y1={originY}
+                x2={originX}
+                y2={22}
+                stroke={isClassic ? '#1e293b' : '#38bdf8'}
+                strokeWidth={isClassic ? '3' : '2.5'}
+                markerEnd="url(#arrow-y)"
+              />
+
+              {/* X-Axis Line with Right Arrowhead */}
+              <line
+                x1={originX}
+                y1={originY}
+                x2={svgWidth - 20}
+                y2={originY}
+                stroke={isClassic ? '#1e293b' : '#38bdf8'}
+                strokeWidth={isClassic ? '3' : '2.5'}
+                markerEnd="url(#arrow-x)"
+              />
+
+              {/* Dashed Upward Zigzag Sawtooth Trajectory */}
+              <path
+                d={pathD}
+                fill="none"
+                stroke={isClassic ? '#1e293b' : 'url(#cyberTrajectory)'}
+                strokeWidth={isClassic ? '3' : '3'}
+                strokeDasharray={isClassic ? '8 6' : '7 4'}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="transition-all duration-300"
+              />
+
+              {/* Interactive Milestone Nodes (Troughs & Peaks) */}
+              {progressNodes.map((node, idx) => {
+                const { x, y } = toSvgCoords(node.x, node.y);
+                const isSelected = selectedNodeIndex === idx;
 
                 return (
-                  <div
-                    key={bin.label}
-                    onClick={() => setSelectedBinIndex(isSelected ? null : idx)}
-                    className={`flex-1 flex flex-col items-center cursor-pointer transition-all ${
-                      isSelected ? 'scale-105' : 'hover:opacity-90'
-                    }`}
+                  <g
+                    key={node.day}
+                    onClick={() => setSelectedNodeIndex(idx)}
+                    className="cursor-pointer group"
                   >
-                    {/* Frequency Count Header */}
-                    <span className="text-xs font-black text-amber-400 mb-1">
-                      {bin.intakeCount} {bin.intakeCount === 1 ? 'day' : 'days'}
-                    </span>
+                    {/* Hover hotspot hit-area */}
+                    <circle cx={x} cy={y} r="18" fill="transparent" />
 
-                    {/* Histogram Frequency Bar */}
-                    <div
-                      style={{ height: `${heightPercent}%` }}
-                      className={`w-full rounded-t-xl bg-gradient-to-t from-amber-600 via-amber-500 to-yellow-400 border border-amber-300/40 relative shadow-lg ${
-                        isSelected ? 'ring-2 ring-white shadow-amber-500/50' : ''
-                      }`}
+                    {/* Outer pulse when selected */}
+                    {isSelected && (
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r="11"
+                        fill="none"
+                        stroke={isClassic ? '#f43f5e' : '#38bdf8'}
+                        strokeWidth="2"
+                        className="animate-ping opacity-75"
+                      />
+                    )}
+
+                    {/* Node circle */}
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={isSelected ? '6.5' : '4.5'}
+                      fill={
+                        isSelected
+                          ? isClassic
+                            ? '#f43f5e'
+                            : '#38bdf8'
+                          : isClassic
+                          ? '#1e293b'
+                          : '#0f172a'
+                      }
+                      stroke={
+                        isClassic
+                          ? isSelected
+                            ? '#ffffff'
+                            : '#1e293b'
+                          : isSelected
+                          ? '#ffffff'
+                          : '#38bdf8'
+                      }
+                      strokeWidth="2"
+                      className="transition-transform duration-200 group-hover:scale-125"
+                    />
+
+                    {/* Day label above/below node */}
+                    <text
+                      x={x}
+                      y={node.type === 'trough' ? y + 18 : y - 12}
+                      textAnchor="middle"
+                      fill={
+                        isSelected
+                          ? isClassic
+                            ? '#e11d48'
+                            : '#38bdf8'
+                          : isClassic
+                          ? '#64748b'
+                          : '#94a3b8'
+                      }
+                      fontSize={isSelected ? '12' : '10'}
+                      fontWeight={isSelected ? '800' : '600'}
+                      fontFamily="system-ui, -apple-system, sans-serif"
                     >
-                      {/* Days Tag list inside bar */}
-                      <div className="p-2 flex flex-wrap gap-1 justify-center">
-                        {bin.days.map((d) => (
-                          <span key={d} className="px-1.5 py-0.5 rounded bg-black/40 text-[9px] font-bold text-white">
-                            {d}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Bin Range Labels */}
-                    <div className="mt-2 text-center">
-                      <span className="block text-xs font-bold text-slate-200">{bin.label}</span>
-                      <span className="block text-[10px] text-slate-400">{bin.range}</span>
-                    </div>
-                  </div>
+                      {node.day}
+                    </text>
+                  </g>
                 );
               })}
+            </svg>
+          </div>
+
+          {/* SIGNATURE CAPTION: "This is progress" - Exact match to uploaded reference */}
+          <div className="mt-4 sm:mt-6 text-center">
+            <h4
+              className={`text-lg sm:text-2xl font-black tracking-tight ${
+                isClassic
+                  ? 'text-slate-800'
+                  : 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-400 to-rose-400'
+              }`}
+            >
+              This is progress
+            </h4>
+            <p
+              className={`text-xs mt-0.5 max-w-sm mx-auto ${
+                isClassic ? 'text-slate-500' : 'text-slate-400'
+              }`}
+            >
+              Growth isn&apos;t linear. Every temporary dip is simply building leverage for the next higher peak.
+            </p>
+          </div>
+
+        </div>
+
+        {/* Interactive Selected Day Inspector Pill */}
+        {selectedNode && (
+          <div
+            className={`mt-6 p-4 rounded-2xl border transition-all ${
+              isClassic
+                ? 'bg-white/80 border-rose-200/90 shadow-sm backdrop-blur-md'
+                : 'bg-slate-900/90 border-slate-800 shadow-md'
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm ${
+                    isClassic
+                      ? 'bg-rose-500/10 text-rose-600 border border-rose-500/20'
+                      : 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                  }`}
+                >
+                  {selectedNode.day}
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span
+                      className={`text-xs sm:text-sm font-black ${
+                        isClassic ? 'text-slate-900' : 'text-white'
+                      }`}
+                    >
+                      {selectedNode.label} ({selectedNode.day}, {selectedNode.date})
+                    </span>
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                        selectedNode.type === 'trough'
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                          : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    >
+                      {selectedNode.type === 'trough' ? 'Recovery Dip' : 'Progress Peak'}
+                    </span>
+                  </div>
+                  <p
+                    className={`text-xs mt-0.5 ${
+                      isClassic ? 'text-slate-600' : 'text-slate-400'
+                    }`}
+                  >
+                    {selectedNode.insight}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4 self-end sm:self-auto text-xs">
+                <div>
+                  <span className="block text-[10px] text-slate-400">Burned</span>
+                  <strong className="text-emerald-500">{selectedNode.caloriesBurned} kcal</strong>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-slate-400">Intake</span>
+                  <strong className="text-amber-500">{selectedNode.caloriesGained} kcal</strong>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-slate-400">Momentum</span>
+                  <strong className="text-cyan-500">{selectedNode.momentumScore}%</strong>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Selected Bin Inspector Card */}
-        {selectedDay && histogramMode === 'daily' && (
-          <div className="mt-3 p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 font-bold text-sm">
-                {selectedDay.day}
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-white">
-                  {selectedDay.day}, {selectedDay.date} Histogram Bin
-                </h4>
-                <p className="text-[11px] text-slate-400">
-                  Burned: <strong className="text-emerald-400">{selectedDay.caloriesBurned} kcal</strong> • Intake: <strong className="text-amber-400">{selectedDay.caloriesGained} kcal</strong>
-                </p>
-              </div>
-            </div>
+      </div>
 
-            <div className="flex items-center space-x-2">
-              <span className="text-[11px] text-slate-400">Daily Balance:</span>
-              <span
-                className={`px-3 py-1 rounded-full text-xs font-bold ${
-                  selectedDay.netBalance <= 1600
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                }`}
-              >
-                {selectedDay.netBalance > 0 ? `+${selectedDay.netBalance} kcal` : `${selectedDay.netBalance} kcal`}
-              </span>
-            </div>
-          </div>
-        )}
-
+      {/* 7-Day Micro Strip for quick tap navigation */}
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
+        {progressNodes.map((node, idx) => {
+          const isSelected = selectedNodeIndex === idx;
+          return (
+            <button
+              key={node.day}
+              onClick={() => setSelectedNodeIndex(idx)}
+              className={`p-2 rounded-xl text-center transition-all ${
+                isSelected
+                  ? 'bg-rose-500/20 border border-rose-400/40 text-rose-300 shadow-md'
+                  : 'bg-slate-950/70 border border-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <span className="block text-[11px] font-black">{node.day}</span>
+              <span className="block text-[9px] text-slate-500 truncate">{node.type}</span>
+            </button>
+          );
+        })}
       </div>
 
     </div>

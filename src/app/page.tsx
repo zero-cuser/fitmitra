@@ -64,9 +64,9 @@ export default function Home() {
     },
     {
       id: 'posture',
-      label: 'Study Sentinel',
+      label: 'Posture Correction',
       icon: <ShieldCheck className="w-4 h-4 text-teal-400" />,
-      badge: 'Pomodoro'
+      badge: 'Mobility'
     },
     {
       id: 'mind',
