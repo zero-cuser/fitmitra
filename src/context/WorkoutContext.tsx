@@ -282,7 +282,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         coachVoice.speakFormCue(result.formCue);
       }
 
-      if (result.repCompleted) {
+      if (result.inFrame && result.repCompleted) {
         recordRep(1);
       }
     },

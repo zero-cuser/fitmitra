@@ -71,6 +71,7 @@ export const CameraView: React.FC = () => {
   // Simulation controls
   const [simDirection, setSimDirection] = useState<1 | -1>(-1);
   const [simAngle, setSimAngle] = useState(160);
+  const simDwellFramesRef = useRef(0);
 
   // Keep ref synchronized to avoid stale state in callback
   const selectedExerciseRef = useRef(selectedExercise);
@@ -440,17 +441,48 @@ export const CameraView: React.FC = () => {
           let newDirection = simDirection;
 
           if (selectedExercise === 'squats' || selectedExercise === 'lunges') {
-            next = prev + simDirection * 4;
-            if (next <= 82) newDirection = 1;
-            else if (next >= 165) newDirection = -1;
+            if (simDirection === -1 && prev <= 84) {
+              // Dwell at bottom depth for 5 frames (~350ms >= 300ms)
+              simDwellFramesRef.current++;
+              if (simDwellFramesRef.current >= 5) {
+                newDirection = 1;
+                simDwellFramesRef.current = 0;
+              }
+              next = 82;
+            } else if (simDirection === 1 && prev >= 165) {
+              newDirection = -1;
+              next = 165;
+            } else {
+              next = prev + simDirection * 4;
+            }
           } else if (selectedExercise === 'pushups') {
-            next = prev + simDirection * 4;
-            if (next <= 80) newDirection = 1;
-            else if (next >= 162) newDirection = -1;
+            if (simDirection === -1 && prev <= 82) {
+              simDwellFramesRef.current++;
+              if (simDwellFramesRef.current >= 5) {
+                newDirection = 1;
+                simDwellFramesRef.current = 0;
+              }
+              next = 80;
+            } else if (simDirection === 1 && prev >= 162) {
+              newDirection = -1;
+              next = 162;
+            } else {
+              next = prev + simDirection * 4;
+            }
           } else if (selectedExercise === 'jumpingJacks') {
-            next = prev + simDirection * 6;
-            if (next >= 145) newDirection = -1;
-            else if (next <= 38) newDirection = 1;
+            if (simDirection === 1 && prev >= 142) {
+              simDwellFramesRef.current++;
+              if (simDwellFramesRef.current >= 4) {
+                newDirection = -1;
+                simDwellFramesRef.current = 0;
+              }
+              next = 145;
+            } else if (simDirection === -1 && prev <= 38) {
+              newDirection = 1;
+              next = 38;
+            } else {
+              next = prev + simDirection * 6;
+            }
           } else {
             // Plank: maintains rock-solid alignment (2-4° deviation)
             next = 3;
