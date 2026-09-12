@@ -90,25 +90,23 @@ export const smoothLandmarksEMA = (
 };
 
 /**
- * Visibility Gate:
- * Only evaluates angles and rep states when key landmarks (shoulders, hips, knees, ankles)
- * have a confidence score > 0.65. If any joint is below 0.65 or outside frame boundaries [0.02, 0.98],
- * returns false to pause rep counting completely.
+ * Friendly Visibility Gate:
+ * Verifies that user joints are detected in frame (confidence > 0.45).
+ * Allows smooth, forgiving tracking in normal room lighting.
  */
 export const checkLandmarksInFrame = (
   landmarks: LandmarkPoint[],
   indices: number[],
-  minConfidence = 0.65
+  minConfidence = 0.45
 ): boolean => {
   if (!landmarks || landmarks.length < 33) return false;
   return indices.every((idx) => {
     const pt = landmarks[idx];
     if (!pt) return false;
-    // Strict confidence score must exceed 0.65
     const vis = pt.visibility !== undefined ? pt.visibility : 1.0;
-    if (vis <= minConfidence) return false;
-    // Boundary check: joints must be within camera frame
-    if (pt.x < 0.02 || pt.x > 0.98 || pt.y < 0.02 || pt.y > 0.98) return false;
+    if (vis < minConfidence) return false;
+    // Basic boundary check
+    if (pt.x < 0.01 || pt.x > 0.99 || pt.y < 0.01 || pt.y > 0.99) return false;
     return true;
   });
 };
@@ -117,17 +115,13 @@ export interface ExerciseTrackerState {
   standingConfirmed: boolean;
   lockoutConfirmed: boolean;
   closedConfirmed: boolean;
-  bottomHoldStartTime: number;
-  bottomDwellSatisfied: boolean;
-  openHoldStartTime: number;
-  openDwellSatisfied: boolean;
+  bottomReached: boolean;
+  openReached: boolean;
   lastRepTime: number;
-  baselineY: number;
 }
 
-// 1. SQUAT STATE MACHINE & KINEMATICS
-// Visibility Gate: >0.65 on shoulders, hips, knees, ankles.
-// State Machine Hysteresis: UP (>160°) -> DOWN (<90° held for at least 300ms) -> UP (>160°)
+// 1. FORGIVING SQUAT KINEMATICS
+// Accessible thresholds: Down (<125° knee flexion), Up (>145°). Form faults give helpful cues without blocking reps.
 export const evaluateSquatLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
@@ -135,197 +129,70 @@ export const evaluateSquatLandmarks = (
 ): TelemetryResult => {
   const req = [
     LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.RIGHT_HIP,
     LANDMARK_INDEX.LEFT_KNEE,
-    LANDMARK_INDEX.RIGHT_KNEE,
     LANDMARK_INDEX.LEFT_ANKLE,
-    LANDMARK_INDEX.RIGHT_ANKLE,
-    LANDMARK_INDEX.LEFT_SHOULDER,
-    LANDMARK_INDEX.RIGHT_SHOULDER
+    LANDMARK_INDEX.LEFT_SHOULDER
   ];
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.65);
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
   if (!inFrame) {
-    if (tracker) {
-      // Pause counting and reset bottom dwell timers when out of frame
-      tracker.bottomHoldStartTime = 0;
-      tracker.bottomDwellSatisfied = false;
-    }
+    if (tracker) tracker.bottomReached = false;
     return {
       inFrame: false,
       angle: 160,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step back to fit in frame (Confidence > 65%)' }],
+      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step into camera view' }],
       isGoodForm: false,
-      formCue: 'Step back to fit in frame'
+      formCue: 'Step into camera view'
     };
   }
 
-  const leftShoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
-  const rightShoulder = landmarks[LANDMARK_INDEX.RIGHT_SHOULDER];
-  const leftHip = landmarks[LANDMARK_INDEX.LEFT_HIP];
-  const rightHip = landmarks[LANDMARK_INDEX.RIGHT_HIP];
-  const leftKnee = landmarks[LANDMARK_INDEX.LEFT_KNEE];
-  const rightKnee = landmarks[LANDMARK_INDEX.RIGHT_KNEE];
-  const leftAnkle = landmarks[LANDMARK_INDEX.LEFT_ANKLE];
-  const rightAnkle = landmarks[LANDMARK_INDEX.RIGHT_ANKLE];
-
-  // Full-body vertical span check: Head-to-ankle must occupy at least 35% of camera frame height
-  const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-  const avgAnkleY = (leftAnkle.y + rightAnkle.y) / 2;
-  const verticalSpan = avgAnkleY - avgShoulderY;
-
-  if (verticalSpan < 0.35) {
-    if (tracker) {
-      tracker.bottomHoldStartTime = 0;
-      tracker.bottomDwellSatisfied = false;
-    }
-    return {
-      inFrame: false,
-      angle: 160,
-      stage: currentStage,
-      repCompleted: false,
-      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step back to fit full body in frame' }],
-      isGoodForm: false,
-      formCue: 'Step back to fit full body in frame'
-    };
-  }
-
-  // Orientation Check: Squats must be performed standing vertically
-  const isVertical =
-    avgShoulderY < (leftHip.y + rightHip.y) / 2 &&
-    (leftHip.y + rightHip.y) / 2 < (leftKnee.y + rightKnee.y) / 2 &&
-    (leftKnee.y + rightKnee.y) / 2 < avgAnkleY;
-
-  if (!isVertical) {
-    if (tracker) {
-      tracker.bottomHoldStartTime = 0;
-      tracker.bottomDwellSatisfied = false;
-    }
-    return {
-      inFrame: true,
-      angle: 160,
-      stage: 'up',
-      repCompleted: false,
-      formFaults: [{ joint: 'hip', x: leftHip.x, y: leftHip.y, message: 'Stand upright facing camera' }],
-      isGoodForm: false,
-      formCue: 'Stand upright facing camera'
-    };
-  }
-
-  // Choose the leg with highest visibility confidence
-  const leftVis = (leftKnee?.visibility ?? 0.8) + (leftHip?.visibility ?? 0.8);
-  const rightVis = (rightKnee?.visibility ?? 0.8) + (rightHip?.visibility ?? 0.8);
+  // Choose the leg with highest visibility
+  const leftVis = (landmarks[LANDMARK_INDEX.LEFT_KNEE]?.visibility ?? 0.8) + (landmarks[LANDMARK_INDEX.LEFT_HIP]?.visibility ?? 0.8);
+  const rightVis = (landmarks[LANDMARK_INDEX.RIGHT_KNEE]?.visibility ?? 0.8) + (landmarks[LANDMARK_INDEX.RIGHT_HIP]?.visibility ?? 0.8);
   const isLeft = leftVis >= rightVis;
 
-  const hip = isLeft ? leftHip : rightHip;
-  const knee = isLeft ? leftKnee : rightKnee;
-  const ankle = isLeft ? leftAnkle : rightAnkle;
-  const shoulder = isLeft ? leftShoulder : rightShoulder;
+  const hip = landmarks[isLeft ? LANDMARK_INDEX.LEFT_HIP : LANDMARK_INDEX.RIGHT_HIP];
+  const knee = landmarks[isLeft ? LANDMARK_INDEX.LEFT_KNEE : LANDMARK_INDEX.RIGHT_KNEE];
+  const ankle = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ANKLE : LANDMARK_INDEX.RIGHT_ANKLE];
+  const shoulder = landmarks[isLeft ? LANDMARK_INDEX.LEFT_SHOULDER : LANDMARK_INDEX.RIGHT_SHOULDER];
 
   const kneeAngle = calculateAngle(hip, knee, ankle) || 160;
   const torsoAngle = calculateAngle(shoulder, hip, knee) || 160;
 
   const formFaults: FormFault[] = [];
-  let isGoodForm = true;
 
-  // 1. Standing Upright Calibration Check
-  if (kneeAngle > 155 && torsoAngle > 135) {
-    if (tracker) {
-      tracker.standingConfirmed = true;
-      tracker.baselineY = hip.y;
-    }
+  // Gentle guidance cues (do NOT block reps)
+  if (kneeAngle > 135 && currentStage === 'down') {
+    formFaults.push({ joint: 'knee', x: knee.x, y: knee.y, message: 'Bend knees lower' });
+  }
+  if (torsoAngle < 55) {
+    formFaults.push({ joint: 'hip', x: hip.x, y: hip.y, message: 'Chest up' });
   }
 
-  // 2. Depth fault check: "Squat deeper to 90°"
-  if (kneeAngle > 90 && currentStage === 'down') {
-    formFaults.push({
-      joint: 'knee',
-      x: knee.x,
-      y: knee.y,
-      message: 'Squat deeper to 90°'
-    });
-    isGoodForm = false;
-  }
-
-  // 3. Knee valgus collapse check: "Knees inward"
-  const kneeDist = Math.abs(leftKnee.x - rightKnee.x);
-  const ankleDist = Math.abs(leftAnkle.x - rightAnkle.x);
-  if (ankleDist > 0.08 && kneeDist < ankleDist * 0.75 && kneeAngle < 135) {
-    formFaults.push({
-      joint: 'knee',
-      x: (leftKnee.x + rightKnee.x) / 2,
-      y: (leftKnee.y + rightKnee.y) / 2,
-      message: 'Knees inward'
-    });
-    isGoodForm = false;
-  }
-
-  // 4. Torso collapse check
-  if (torsoAngle < 65) {
-    formFaults.push({
-      joint: 'hip',
-      x: hip.x,
-      y: hip.y,
-      message: 'Chest up, spine neutral!'
-    });
-    isGoodForm = false;
-  }
-
-  // Hysteresis State Machine with 300ms Bottom Dwell Requirement
+  // Accessible State Machine: Down (<125°) -> Up (>145°)
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  const isStandingConfirmed = tracker ? tracker.standingConfirmed : true;
-  const hipDropped = tracker ? (hip.y - tracker.baselineY) > 0.035 : true;
-
-  // DOWN Phase: Depth must be below 90°
-  if (isStandingConfirmed && kneeAngle < 90 && hipDropped) {
+  if (kneeAngle < 125) {
     newStage = 'down';
-    if (tracker) {
-      if (tracker.bottomHoldStartTime === 0) {
-        tracker.bottomHoldStartTime = now;
-      }
-      // Must hold depth below 90° for at least 300ms
-      const dwellDuration = now - tracker.bottomHoldStartTime;
-      if (dwellDuration >= 300) {
-        tracker.bottomDwellSatisfied = true;
-        formCue = 'Solid 90° depth held! Now drive up!';
-      } else {
-        formCue = `Hold depth (${dwellDuration}/300ms)...`;
-      }
-    } else {
-      formCue = 'Good depth, now drive up!';
-    }
-  } else if (kneeAngle >= 90 && kneeAngle < 160) {
-    // If user rises or jitters before reaching 300ms, reset dwell timer
-    if (tracker && !tracker.bottomDwellSatisfied && currentStage !== 'down') {
-      tracker.bottomHoldStartTime = 0;
-    }
-  } else if (kneeAngle > 160) {
-    // UP Phase: User returned past 160°
+    if (tracker) tracker.bottomReached = true;
+    formCue = 'Good depth, now stand up!';
+  } else if (kneeAngle > 145) {
     newStage = 'up';
-    const hadDwell = tracker ? tracker.bottomDwellSatisfied : currentStage === 'down';
-    const hipReturned = tracker ? Math.abs(hip.y - tracker.baselineY) < 0.045 : true;
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 1000 : true;
+    const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
+    const cooldownOk = tracker ? now - tracker.lastRepTime > 600 : true;
 
-    if (hadDwell && hipReturned && cooldownOk) {
+    if (hadBottom && cooldownOk) {
       repCompleted = true;
       if (tracker) {
-        tracker.bottomDwellSatisfied = false;
-        tracker.bottomHoldStartTime = 0;
+        tracker.bottomReached = false;
         tracker.lastRepTime = now;
       }
-      formCue = 'Clean squat rep!';
-    } else {
-      // Incomplete cycle or premature ascent without 300ms hold
-      if (tracker) {
-        tracker.bottomDwellSatisfied = false;
-        tracker.bottomHoldStartTime = 0;
-      }
+      formCue = 'Squat counted! Great job!';
     }
   }
 
@@ -335,14 +202,13 @@ export const evaluateSquatLandmarks = (
     stage: newStage,
     repCompleted,
     formFaults,
-    isGoodForm,
+    isGoodForm: true,
     formCue
   };
 };
 
-// 2. PUSH-UP STATE MACHINE & KINEMATICS
-// Visibility Gate: >0.65 on shoulders, elbows, wrists, hips, ankles.
-// State Machine Hysteresis: UP (>160°) -> DOWN (<90° held for at least 300ms) -> UP (>160°)
+// 2. FORGIVING PUSH-UP KINEMATICS
+// Accessible thresholds: Down (<125° elbow flexion), Up (>145°). Lenient prone orientation (supports incline/knees).
 export const evaluatePushupLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
@@ -351,147 +217,55 @@ export const evaluatePushupLandmarks = (
   const req = [
     LANDMARK_INDEX.LEFT_SHOULDER,
     LANDMARK_INDEX.LEFT_ELBOW,
-    LANDMARK_INDEX.LEFT_WRIST,
-    LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.LEFT_ANKLE
+    LANDMARK_INDEX.LEFT_WRIST
   ];
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.65);
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
   if (!inFrame) {
-    if (tracker) {
-      tracker.bottomHoldStartTime = 0;
-      tracker.bottomDwellSatisfied = false;
-    }
+    if (tracker) tracker.bottomReached = false;
     return {
       inFrame: false,
       angle: 160,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'elbow', x: 0.5, y: 0.5, message: 'Step back to fit in frame (Confidence > 65%)' }],
+      formFaults: [{ joint: 'elbow', x: 0.5, y: 0.5, message: 'Step into camera view' }],
       isGoodForm: false,
-      formCue: 'Step back to fit in frame'
+      formCue: 'Step into camera view'
     };
   }
 
-  const shoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
-  const elbow = landmarks[LANDMARK_INDEX.LEFT_ELBOW];
-  const wrist = landmarks[LANDMARK_INDEX.LEFT_WRIST];
-  const hip = landmarks[LANDMARK_INDEX.LEFT_HIP];
-  const ankle = landmarks[LANDMARK_INDEX.LEFT_ANKLE];
+  const leftVis = (landmarks[LANDMARK_INDEX.LEFT_ELBOW]?.visibility ?? 0.8);
+  const rightVis = (landmarks[LANDMARK_INDEX.RIGHT_ELBOW]?.visibility ?? 0.8);
+  const isLeft = leftVis >= rightVis;
+
+  const shoulder = landmarks[isLeft ? LANDMARK_INDEX.LEFT_SHOULDER : LANDMARK_INDEX.RIGHT_SHOULDER];
+  const elbow = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ELBOW : LANDMARK_INDEX.RIGHT_ELBOW];
+  const wrist = landmarks[isLeft ? LANDMARK_INDEX.LEFT_WRIST : LANDMARK_INDEX.RIGHT_WRIST];
 
   const elbowAngle = calculateAngle(shoulder, elbow, wrist) || 160;
-  const hipLineAngle = calculateAngle(shoulder, hip, ankle) || 175;
 
-  // Posture Orientation Gate: Push-ups require horizontal prone floor stance
-  const vertDelta = Math.abs(shoulder.y - ankle.y);
-  const horizDelta = Math.abs(shoulder.x - ankle.x);
-  const isHorizontal = horizDelta > 0.28 && vertDelta < 0.32;
-
-  if (!isHorizontal) {
-    if (tracker) {
-      tracker.bottomHoldStartTime = 0;
-      tracker.bottomDwellSatisfied = false;
-    }
-    return {
-      inFrame: true,
-      angle: elbowAngle,
-      stage: 'up',
-      repCompleted: false,
-      formFaults: [
-        {
-          joint: 'hip',
-          x: hip.x,
-          y: hip.y,
-          message: 'Get down into horizontal push-up position'
-        }
-      ],
-      isGoodForm: false,
-      formCue: 'Get down into horizontal push-up position'
-    };
-  }
-
-  const formFaults: FormFault[] = [];
-  let isGoodForm = true;
-
-  // Calibrate Lockout Starting Position
-  if (elbowAngle > 155) {
-    if (tracker) {
-      tracker.lockoutConfirmed = true;
-      tracker.baselineY = shoulder.y;
-    }
-  }
-
-  // Hip alignment: Shoulder-Hip-Ankle must remain between 165° and 185°
-  if (hipLineAngle < 165 || hipLineAngle > 185) {
-    formFaults.push({
-      joint: 'hip',
-      x: hip.x,
-      y: hip.y,
-      message: 'Hips sagging - engage core'
-    });
-    isGoodForm = false;
-  }
-
-  // Chest depth fault when descending
-  if (elbowAngle > 90 && currentStage === 'down') {
-    formFaults.push({
-      joint: 'elbow',
-      x: elbow.x,
-      y: elbow.y,
-      message: 'Lower chest to 90°'
-    });
-    isGoodForm = false;
-  }
-
+  // Accessible State Machine: Down (<125°) -> Up (>145°)
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  const isLockoutConfirmed = tracker ? tracker.lockoutConfirmed : true;
-  const chestDescended = tracker ? (shoulder.y - tracker.baselineY) > 0.03 : true;
-
-  // DOWN Phase: Elbow flexion must be below 90° and held for >= 300ms
-  if (isLockoutConfirmed && elbowAngle < 90 && chestDescended) {
+  if (elbowAngle < 125) {
     newStage = 'down';
-    if (tracker) {
-      if (tracker.bottomHoldStartTime === 0) {
-        tracker.bottomHoldStartTime = now;
-      }
-      const dwellDuration = now - tracker.bottomHoldStartTime;
-      if (dwellDuration >= 300) {
-        tracker.bottomDwellSatisfied = true;
-        formCue = 'Chest down held! Press up strong!';
-      } else {
-        formCue = `Hold depth (${dwellDuration}/300ms)...`;
-      }
-    } else {
-      formCue = 'Chest down, press up!';
-    }
-  } else if (elbowAngle >= 90 && elbowAngle < 160) {
-    if (tracker && !tracker.bottomDwellSatisfied && currentStage !== 'down') {
-      tracker.bottomHoldStartTime = 0;
-    }
-  } else if (elbowAngle > 160) {
-    // UP Phase: Lockout past 160°
+    if (tracker) tracker.bottomReached = true;
+    formCue = 'Good press, now push up!';
+  } else if (elbowAngle > 145) {
     newStage = 'up';
-    const hadDwell = tracker ? tracker.bottomDwellSatisfied : currentStage === 'down';
-    const chestReturned = tracker ? Math.abs(shoulder.y - tracker.baselineY) < 0.04 : true;
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 900 : true;
+    const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
+    const cooldownOk = tracker ? now - tracker.lastRepTime > 600 : true;
 
-    if (hadDwell && chestReturned && cooldownOk) {
+    if (hadBottom && cooldownOk) {
       repCompleted = true;
       if (tracker) {
-        tracker.bottomDwellSatisfied = false;
-        tracker.bottomHoldStartTime = 0;
+        tracker.bottomReached = false;
         tracker.lastRepTime = now;
       }
-      formCue = 'Solid push-up rep!';
-    } else {
-      if (tracker) {
-        tracker.bottomDwellSatisfied = false;
-        tracker.bottomHoldStartTime = 0;
-      }
+      formCue = 'Push-up counted! Strong!';
     }
   }
 
@@ -500,15 +274,14 @@ export const evaluatePushupLandmarks = (
     angle: elbowAngle,
     stage: newStage,
     repCompleted,
-    formFaults,
-    isGoodForm,
+    formFaults: [],
+    isGoodForm: true,
     formCue
   };
 };
 
-// 3. JUMPING JACKS STATE MACHINE & KINEMATICS
-// Visibility Gate: >0.65 on shoulders, wrists, hips, ankles.
-// State Machine Hysteresis: Closed (<50°) -> Open (>130° overhead held for >=250ms) -> Closed (<50°)
+// 3. FORGIVING JUMPING JACKS KINEMATICS
+// Accessible thresholds: Open (>95° arm abduction), Closed (<70°).
 export const evaluateJumpingJackLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
@@ -516,111 +289,53 @@ export const evaluateJumpingJackLandmarks = (
 ): TelemetryResult => {
   const req = [
     LANDMARK_INDEX.LEFT_SHOULDER,
-    LANDMARK_INDEX.RIGHT_SHOULDER,
     LANDMARK_INDEX.LEFT_WRIST,
-    LANDMARK_INDEX.RIGHT_WRIST,
-    LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.RIGHT_HIP,
-    LANDMARK_INDEX.LEFT_ANKLE,
-    LANDMARK_INDEX.RIGHT_ANKLE
+    LANDMARK_INDEX.LEFT_HIP
   ];
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.65);
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
   if (!inFrame) {
-    if (tracker) {
-      tracker.openHoldStartTime = 0;
-      tracker.openDwellSatisfied = false;
-    }
+    if (tracker) tracker.openReached = false;
     return {
       inFrame: false,
       angle: 45,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'wrist', x: 0.5, y: 0.5, message: 'Step back to fit in frame (Confidence > 65%)' }],
+      formFaults: [{ joint: 'wrist', x: 0.5, y: 0.5, message: 'Step into camera view' }],
       isGoodForm: false,
-      formCue: 'Step back to fit in frame'
+      formCue: 'Step into camera view'
     };
   }
 
   const leftShoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
-  const rightShoulder = landmarks[LANDMARK_INDEX.RIGHT_SHOULDER];
   const leftHip = landmarks[LANDMARK_INDEX.LEFT_HIP];
-  const rightHip = landmarks[LANDMARK_INDEX.RIGHT_HIP];
   const leftWrist = landmarks[LANDMARK_INDEX.LEFT_WRIST];
-  const rightWrist = landmarks[LANDMARK_INDEX.RIGHT_WRIST];
-  const leftAnkle = landmarks[LANDMARK_INDEX.LEFT_ANKLE];
-  const rightAnkle = landmarks[LANDMARK_INDEX.RIGHT_ANKLE];
-
-  const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-  const avgAnkleY = (leftAnkle.y + rightAnkle.y) / 2;
-  if (avgAnkleY - avgShoulderY < 0.35) {
-    if (tracker) {
-      tracker.openHoldStartTime = 0;
-      tracker.openDwellSatisfied = false;
-    }
-    return {
-      inFrame: false,
-      angle: 45,
-      stage: currentStage,
-      repCompleted: false,
-      formFaults: [{ joint: 'wrist', x: 0.5, y: 0.5, message: 'Step back to fit full body in frame' }],
-      isGoodForm: false,
-      formCue: 'Step back to fit full body in frame'
-    };
-  }
 
   const armAngle = calculateAngle(leftHip, leftShoulder, leftWrist) || 45;
-  const ankleDistance = Math.abs(leftAnkle.x - rightAnkle.x);
-  const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x) || 0.15;
-
-  // Closed starting calibration
-  const isClosedPosture = armAngle < 50 && leftWrist.y > leftHip.y && rightWrist.y > rightHip.y && ankleDistance < shoulderWidth * 1.05;
-  if (isClosedPosture && tracker) {
-    tracker.closedConfirmed = true;
-  }
-
-  const wristsOverhead = leftWrist.y < leftShoulder.y && rightWrist.y < rightShoulder.y;
-  const isOpen = armAngle > 130 && wristsOverhead && ankleDistance > shoulderWidth * 1.15;
-  const isClosed = armAngle < 55 && leftWrist.y > leftHip.y && ankleDistance < shoulderWidth * 1.05;
 
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  const isClosedConfirmed = tracker ? tracker.closedConfirmed : true;
-
-  if (isClosedConfirmed && isOpen) {
+  // Open: Arms raised out (>95°)
+  if (armAngle > 95) {
     newStage = 'up';
-    if (tracker) {
-      if (tracker.openHoldStartTime === 0) {
-        tracker.openHoldStartTime = now;
-      }
-      if (now - tracker.openHoldStartTime >= 250) {
-        tracker.openDwellSatisfied = true;
-        formCue = 'Arms high, feet wide!';
-      }
-    } else {
-      formCue = 'Arms high, feet wide!';
-    }
-  } else if (isClosed) {
+    if (tracker) tracker.openReached = true;
+    formCue = 'Arms out wide!';
+  } else if (armAngle < 70) {
+    // Closed: Arms returned to sides (<70°)
     newStage = 'down';
-    const hadOpen = tracker ? tracker.openDwellSatisfied : currentStage === 'up';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 700 : true;
+    const hadOpen = tracker ? tracker.openReached : currentStage === 'up';
+    const cooldownOk = tracker ? now - tracker.lastRepTime > 500 : true;
 
     if (hadOpen && cooldownOk) {
       repCompleted = true;
       if (tracker) {
-        tracker.openDwellSatisfied = false;
-        tracker.openHoldStartTime = 0;
+        tracker.openReached = false;
         tracker.lastRepTime = now;
       }
       formCue = 'Jumping jack counted!';
-    } else {
-      if (tracker) {
-        tracker.openDwellSatisfied = false;
-        tracker.openHoldStartTime = 0;
-      }
     }
   }
 
@@ -635,8 +350,8 @@ export const evaluateJumpingJackLandmarks = (
   };
 };
 
-// 4. LUNGE STATE MACHINE & KINEMATICS
-// Visibility Gate: >0.65. Hysteresis: Standing (>155°) -> Lunge (<90° held for 300ms) -> Standing (>155°)
+// 4. FORGIVING LUNGE KINEMATICS
+// Accessible thresholds: Down (<125° knee flexion), Up (>145°).
 export const evaluateLungeLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
@@ -644,28 +359,21 @@ export const evaluateLungeLandmarks = (
 ): TelemetryResult => {
   const req = [
     LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.RIGHT_HIP,
     LANDMARK_INDEX.LEFT_KNEE,
-    LANDMARK_INDEX.RIGHT_KNEE,
-    LANDMARK_INDEX.LEFT_ANKLE,
-    LANDMARK_INDEX.RIGHT_ANKLE,
-    LANDMARK_INDEX.LEFT_SHOULDER
+    LANDMARK_INDEX.LEFT_ANKLE
   ];
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.65);
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
   if (!inFrame) {
-    if (tracker) {
-      tracker.bottomHoldStartTime = 0;
-      tracker.bottomDwellSatisfied = false;
-    }
+    if (tracker) tracker.bottomReached = false;
     return {
       inFrame: false,
       angle: 160,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'knee', x: 0.5, y: 0.5, message: 'Step back to fit in frame (Confidence > 65%)' }],
+      formFaults: [{ joint: 'knee', x: 0.5, y: 0.5, message: 'Step into camera view' }],
       isGoodForm: false,
-      formCue: 'Step back to fit in frame'
+      formCue: 'Step into camera view'
     };
   }
 
@@ -681,82 +389,28 @@ export const evaluateLungeLandmarks = (
   );
 
   const activeKneeAngle = Math.min(leftKneeAngle, rightKneeAngle);
-  const isLeftLead = leftKneeAngle < rightKneeAngle;
-  const activeHip = isLeftLead ? landmarks[LANDMARK_INDEX.LEFT_HIP] : landmarks[LANDMARK_INDEX.RIGHT_HIP];
-  const activeShoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
-
-  const torsoAngle = calculateAngle(activeShoulder, activeHip, isLeftLead ? landmarks[LANDMARK_INDEX.LEFT_KNEE] : landmarks[LANDMARK_INDEX.RIGHT_KNEE]);
-
-  const formFaults: FormFault[] = [];
-  let isGoodForm = true;
-
-  if (leftKneeAngle > 150 && rightKneeAngle > 150 && torsoAngle > 135) {
-    if (tracker) {
-      tracker.standingConfirmed = true;
-      tracker.baselineY = activeHip.y;
-    }
-  }
-
-  if (torsoAngle < 75) {
-    formFaults.push({
-      joint: 'hip',
-      x: activeHip.x,
-      y: activeHip.y,
-      message: 'Keep chest tall'
-    });
-    isGoodForm = false;
-  }
-
-  const footSeparation = Math.abs(landmarks[LANDMARK_INDEX.LEFT_ANKLE].x - landmarks[LANDMARK_INDEX.RIGHT_ANKLE].x);
-  const hipDropped = tracker ? (activeHip.y - tracker.baselineY) > 0.035 : true;
-  const isStandingConfirmed = tracker ? tracker.standingConfirmed : true;
 
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  // DOWN Phase: Lead knee < 90° held for at least 300ms
-  if (isStandingConfirmed && activeKneeAngle < 90 && footSeparation > 0.10 && hipDropped) {
+  if (activeKneeAngle < 125) {
     newStage = 'down';
-    if (tracker) {
-      if (tracker.bottomHoldStartTime === 0) {
-        tracker.bottomHoldStartTime = now;
-      }
-      const dwellDuration = now - tracker.bottomHoldStartTime;
-      if (dwellDuration >= 300) {
-        tracker.bottomDwellSatisfied = true;
-        formCue = 'Solid lunge depth held! Return upright!';
-      } else {
-        formCue = `Hold 90° depth (${dwellDuration}/300ms)...`;
-      }
-    } else {
-      formCue = 'Hold 90°, step back!';
-    }
-  } else if (activeKneeAngle >= 90 && activeKneeAngle < 155) {
-    if (tracker && !tracker.bottomDwellSatisfied && currentStage !== 'down') {
-      tracker.bottomHoldStartTime = 0;
-    }
-  } else if (activeKneeAngle > 155) {
-    // UP Phase: Return past 155°
+    if (tracker) tracker.bottomReached = true;
+    formCue = 'Good lunge step, now rise!';
+  } else if (activeKneeAngle > 145) {
     newStage = 'up';
-    const hadDwell = tracker ? tracker.bottomDwellSatisfied : currentStage === 'down';
-    const hipReturned = tracker ? Math.abs(activeHip.y - tracker.baselineY) < 0.045 : true;
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 1000 : true;
+    const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
+    const cooldownOk = tracker ? now - tracker.lastRepTime > 600 : true;
 
-    if (hadDwell && hipReturned && cooldownOk) {
+    if (hadBottom && cooldownOk) {
       repCompleted = true;
       if (tracker) {
-        tracker.bottomDwellSatisfied = false;
-        tracker.bottomHoldStartTime = 0;
+        tracker.bottomReached = false;
         tracker.lastRepTime = now;
       }
-      formCue = 'Strong lunge rep!';
-    } else {
-      if (tracker) {
-        tracker.bottomDwellSatisfied = false;
-        tracker.bottomHoldStartTime = 0;
-      }
+      formCue = 'Lunge counted! Excellent!';
     }
   }
 
@@ -765,14 +419,14 @@ export const evaluateLungeLandmarks = (
     angle: activeKneeAngle,
     stage: newStage,
     repCompleted,
-    formFaults,
-    isGoodForm,
+    formFaults: [],
+    isGoodForm: true,
     formCue
   };
 };
 
-// 5. PLANK STATIC HOLD ENGINE
-// Visibility Gate: >0.65. Floor horizontal orientation required. Timer only increments while alignment is 165°-185°.
+// 5. FORGIVING PLANK STATIC HOLD ENGINE
+// Wide alignment range: 135° to 205°. As long as user is on floor in plank position, timer counts smoothly.
 export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryResult => {
   const req = [
     LANDMARK_INDEX.LEFT_SHOULDER,
@@ -780,16 +434,16 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
     LANDMARK_INDEX.LEFT_ANKLE
   ];
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.65);
+  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
   if (!inFrame) {
     return {
       inFrame: false,
       angle: 180,
       stage: 'down',
       repCompleted: false,
-      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step back to fit in frame (Confidence > 65%)' }],
+      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step into camera view' }],
       isGoodForm: false,
-      formCue: 'Step back to fit in frame'
+      formCue: 'Step into camera view'
     };
   }
 
@@ -799,10 +453,10 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
 
   const straightLineAngle = calculateAngle(shoulder, hip, ankle);
 
-  // Orientation Check: Plank MUST be performed horizontally on the floor!
+  // Lenient horizontal prone orientation (supports forearms, hands, knees)
   const vertDelta = Math.abs(shoulder.y - ankle.y);
   const horizDelta = Math.abs(shoulder.x - ankle.x);
-  const isHorizontalProne = horizDelta > 0.28 && vertDelta < 0.32;
+  const isHorizontalProne = horizDelta > 0.18 || vertDelta < 0.40;
 
   if (!isHorizontalProne) {
     return {
@@ -815,44 +469,43 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
           joint: 'hip',
           x: hip.x,
           y: hip.y,
-          message: 'Get down on floor in horizontal plank'
+          message: 'Get into horizontal plank on floor'
         }
       ],
       isGoodForm: false,
-      formCue: 'Get down on floor in horizontal plank'
+      formCue: 'Get into horizontal plank on floor'
     };
   }
 
   const formFaults: FormFault[] = [];
   let isGoodForm = true;
-  let formCue = 'Solid plank line, hold!';
+  let formCue = 'Plank holding strong!';
 
-  // Alignment stays between 165° and 185°
-  if (straightLineAngle < 165 || straightLineAngle > 185) {
+  // Wide forgiving range: 135° to 205°
+  if (straightLineAngle < 135 || straightLineAngle > 205) {
     formFaults.push({
       joint: 'hip',
       x: hip.x,
       y: hip.y,
-      message: 'Hips sagging - engage core'
+      message: 'Keep body straight'
     });
-    isGoodForm = false;
-    formCue = 'Hips sagging - engage core';
+    // Gentle warning without breaking the hold
   }
 
   return {
     inFrame: true,
     angle: straightLineAngle,
     stage: 'down',
-    repCompleted: false, // Isometric hold: seconds are accumulated by hold timer in WorkoutContext
+    repCompleted: false,
     formFaults,
-    isGoodForm: isHorizontalProne && isGoodForm,
+    isGoodForm: isHorizontalProne,
     formCue
   };
 };
 
 /**
  * Stateful Biomechanical Kinematic Engine
- * Maintains internal stages and dwell states synchronously to eliminate race conditions and phantom reps.
+ * Smooth, forgiving, and responsive.
  */
 export class ExerciseRepEngine {
   private currentExercise: ExerciseKey = 'squats';
@@ -861,12 +514,9 @@ export class ExerciseRepEngine {
     standingConfirmed: false,
     lockoutConfirmed: false,
     closedConfirmed: false,
-    bottomHoldStartTime: 0,
-    bottomDwellSatisfied: false,
-    openHoldStartTime: 0,
-    openDwellSatisfied: false,
-    lastRepTime: 0,
-    baselineY: 0
+    bottomReached: false,
+    openReached: false,
+    lastRepTime: 0
   };
 
   reset(exercise?: ExerciseKey) {
@@ -876,12 +526,9 @@ export class ExerciseRepEngine {
       standingConfirmed: false,
       lockoutConfirmed: false,
       closedConfirmed: false,
-      bottomHoldStartTime: 0,
-      bottomDwellSatisfied: false,
-      openHoldStartTime: 0,
-      openDwellSatisfied: false,
-      lastRepTime: 0,
-      baselineY: 0
+      bottomReached: false,
+      openReached: false,
+      lastRepTime: 0
     };
   }
 
@@ -912,7 +559,6 @@ export class ExerciseRepEngine {
         result = evaluateSquatLandmarks(landmarks, this.stage, this.tracker);
     }
 
-    // Synchronously update internal stage
     this.stage = result.stage;
     return result;
   }
