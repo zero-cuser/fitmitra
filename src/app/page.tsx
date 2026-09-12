@@ -8,13 +8,11 @@ import { StatsPanel } from '@/components/AIPoseCoach/StatsPanel';
 import { WeeklyCalorieChart } from '@/components/Progress/WeeklyCalorieChart';
 import { NutritionTracker } from '@/components/MessNutrition/NutritionTracker';
 import { FriendsHub } from '@/components/Friends/FriendsHub';
-import { PostureSentinel } from '@/components/PostureSentinel/PostureSentinel';
 import { ExamStressReset } from '@/components/Wellness/ExamStressReset';
 import {
   Zap,
   Flame,
   Users,
-  ShieldCheck,
   HeartPulse,
   Shield,
   Eye,
@@ -38,7 +36,7 @@ const CameraView = dynamic(
   }
 );
 
-type ActiveTabKey = 'coach' | 'nutrition' | 'friends' | 'posture' | 'mind';
+type ActiveTabKey = 'coach' | 'nutrition' | 'friends' | 'mind';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTabKey>('coach');
@@ -63,12 +61,6 @@ export default function Home() {
       badge: 'Daily Compare'
     },
     {
-      id: 'posture',
-      label: 'Study Sentinel',
-      icon: <ShieldCheck className="w-4 h-4 text-teal-400" />,
-      badge: 'Pomodoro'
-    },
-    {
       id: 'mind',
       label: 'Exam Sanctuary',
       icon: <HeartPulse className="w-4 h-4 text-rose-400" />,
@@ -86,7 +78,7 @@ export default function Home() {
         
         {/* Simplified Hub Segmented Control */}
         <div className="w-full bg-slate-900/80 backdrop-blur-xl p-1.5 rounded-2xl border border-slate-800 shadow-lg overflow-x-auto no-scrollbar">
-          <div className="flex sm:grid sm:grid-cols-5 gap-1.5 min-w-[620px] sm:min-w-0">
+          <div className="flex sm:grid sm:grid-cols-4 gap-1.5 min-w-[500px] sm:min-w-0">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
@@ -129,7 +121,7 @@ export default function Home() {
                   Select Target Bodyweight Exercise
                 </span>
                 <span className="text-[10px] text-emerald-400/90 font-medium">
-                  Mobile Posture Correction & Alignment • Real-Time Joint Kinematics
+                  5 Preset Movements • Real-Time Joint Kinematics
                 </span>
               </div>
               <ExerciseTabs />
@@ -201,14 +193,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* TAB 4: Study Posture Sentinel */}
-        {activeTab === 'posture' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            <PostureSentinel />
-          </div>
-        )}
-
-        {/* TAB 5: Exam Stress & Breath Sanctuary */}
+        {/* TAB 4: Exam Stress & Breath Sanctuary */}
         {activeTab === 'mind' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             <ExamStressReset />

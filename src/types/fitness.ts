@@ -1,4 +1,4 @@
-export type ExerciseKey = 'squats' | 'pushups' | 'jumpingJacks' | 'lunges' | 'plank' | 'cervicalRetraction' | 'chestOpener';
+export type ExerciseKey = 'squats' | 'pushups' | 'jumpingJacks' | 'lunges' | 'plank';
 
 export type FitnessGoal = 'posture' | 'strength' | 'mobility' | 'cardio';
 

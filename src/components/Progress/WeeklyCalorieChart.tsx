@@ -2,434 +2,500 @@
 
 import React, { useState } from 'react';
 import { useWorkout } from '@/context/WorkoutContext';
-import { Flame, Utensils, TrendingUp, Sparkles, Activity, CheckCircle2 } from 'lucide-react';
+import {
+  Flame,
+  Utensils,
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  Zap,
+  CheckCircle2,
+  Info,
+  ArrowUpRight,
+  Sparkles
+} from 'lucide-react';
 
-type ViewMode = 'all' | 'comparison' | 'progress';
+type ViewMode = 'compare' | 'intake' | 'burned' | 'progress';
 
 export const WeeklyCalorieChart: React.FC = () => {
   const { weeklyCalorieHistory } = useWorkout();
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(weeklyCalorieHistory.length - 1);
-  const [viewMode, setViewMode] = useState<ViewMode>('all');
+  const [selectedDayIdx, setSelectedDayIdx] = useState<number>(weeklyCalorieHistory.length - 1);
+  const [viewMode, setViewMode] = useState<ViewMode>('compare');
 
-  // Compute weekly totals & statistics
+  // Computed metrics
   const totalBurnedWeek = weeklyCalorieHistory.reduce((acc, d) => acc + d.caloriesBurned, 0);
-  const totalGainedWeek = weeklyCalorieHistory.reduce((acc, d) => acc + d.caloriesGained, 0);
-  const meanIntake = Math.round(totalGainedWeek / (weeklyCalorieHistory.length || 1));
+  const totalIntakeWeek = weeklyCalorieHistory.reduce((acc, d) => acc + d.caloriesGained, 0);
   const meanBurned = Math.round(totalBurnedWeek / (weeklyCalorieHistory.length || 1));
-  const netWeeklyBalance = totalGainedWeek - totalBurnedWeek;
+  const meanIntake = Math.round(totalIntakeWeek / (weeklyCalorieHistory.length || 1));
+  const netWeekly = totalIntakeWeek - totalBurnedWeek;
+  const activeDaysCount = weeklyCalorieHistory.filter((d) => d.caloriesBurned >= 150).length;
 
-  const selectedDay = weeklyCalorieHistory[selectedDayIndex] || weeklyCalorieHistory[weeklyCalorieHistory.length - 1];
+  const selectedDay = weeklyCalorieHistory[selectedDayIdx] || weeklyCalorieHistory[weeklyCalorieHistory.length - 1];
 
-  // SVG Chart Dimensions & Padding
-  const svgWidth = 800;
-  const svgHeight = 340;
-  const paddingLeft = 70;
-  const paddingRight = 55;
-  const paddingTop = 40;
-  const paddingBottom = 60;
+  // Maximum scale calculation with safe padding
+  const maxIntake = Math.max(...weeklyCalorieHistory.map((d) => d.caloriesGained), 2200);
+  const maxBurned = Math.max(...weeklyCalorieHistory.map((d) => d.caloriesBurned), 500);
 
-  const chartWidth = svgWidth - paddingLeft - paddingRight;
-  const chartHeight = svgHeight - paddingTop - paddingBottom;
+  // SVG dimensions for responsive coordinate plane
+  const svgWidth = 640;
+  const svgHeight = 280;
+  const paddingLeft = 58;
+  const paddingRight = 40;
+  const paddingTop = 36;
+  const paddingBottom = 48;
 
-  // Max value for calorie scale (Intake / Burned)
-  const maxCalorie = 2400;
+  const plotWidth = svgWidth - paddingLeft - paddingRight;
+  const plotHeight = svgHeight - paddingTop - paddingBottom;
+  const numPoints = weeklyCalorieHistory.length;
+  const stepX = plotWidth / (numPoints - 1 || 1);
 
-  // Compute Progress Index values (The zigzag upward progress curve from the user's sketch)
-  // Up -> small dip -> up higher -> small dip -> up higher -> final surge!
-  const progressIndexBase = [32, 54, 46, 68, 62, 85, 96];
-  const progressPoints = weeklyCalorieHistory.map((d, i) => {
-    const bonus = Math.min(10, Math.round(d.caloriesBurned / 60));
-    const score = Math.min(100, (progressIndexBase[i % progressIndexBase.length] || 50) + bonus);
-    return score;
-  });
-
-  // Calculate coordinates for points
-  const numDays = weeklyCalorieHistory.length;
-  const stepX = chartWidth / (numDays - 1 || 1);
-
-  const getX = (index: number) => paddingLeft + index * stepX;
-  const getYCalorie = (kcal: number) => {
-    const clamped = Math.max(0, Math.min(maxCalorie, kcal));
-    return paddingTop + chartHeight - (clamped / maxCalorie) * chartHeight;
+  // Normalization helpers
+  const scaleYIntake = (val: number) => {
+    const yMax = Math.ceil(maxIntake / 400) * 400;
+    const ratio = Math.max(0, Math.min(1, val / yMax));
+    return paddingTop + plotHeight - ratio * plotHeight;
   };
 
-  const getYProgress = (score: number) => {
-    return paddingTop + chartHeight - (score / 100) * chartHeight;
+  const scaleYBurned = (val: number) => {
+    const yMax = Math.ceil(maxBurned / 100) * 100;
+    const ratio = Math.max(0, Math.min(1, val / yMax));
+    return paddingTop + plotHeight - ratio * plotHeight;
   };
 
-  // Generate SVG Path for Intake (Amber Line)
-  const intakePath = weeklyCalorieHistory.reduce((acc, d, i) => {
-    const x = getX(i);
-    const y = getYCalorie(d.caloriesGained);
-    return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
-  }, '');
+  // The iconic "This is progress" trajectory:
+  // Modeled based on cumulative weekly fitness net consistency
+  const getProgressPoints = () => {
+    let cumulative = 22;
+    const points: { x: number; y: number; val: number }[] = [];
+    weeklyCalorieHistory.forEach((d, i) => {
+      const x = paddingLeft + i * stepX;
+      // Zigzag progression formula: workout days boost progress, rest days dip slightly but trend higher
+      const delta = d.caloriesBurned >= 250 ? 15 : d.caloriesBurned >= 150 ? 7 : -6;
+      cumulative = Math.max(15, Math.min(95, cumulative + delta + i * 3.5));
+      const y = paddingTop + plotHeight - (cumulative / 100) * plotHeight;
+      points.push({ x, y, val: Math.round(cumulative) });
+    });
+    return points;
+  };
 
-  // Generate SVG Area for Intake (Gradient Fill)
-  const intakeArea = `${intakePath} L ${getX(numDays - 1)} ${paddingTop + chartHeight} L ${getX(0)} ${paddingTop + chartHeight} Z`;
+  const intakePoints = weeklyCalorieHistory.map((d, i) => ({
+    x: paddingLeft + i * stepX,
+    y: scaleYIntake(d.caloriesGained),
+    val: d.caloriesGained,
+    day: d.day,
+    date: d.date
+  }));
 
-  // Generate SVG Path for Burned (Cyan Line)
-  const burnedPath = weeklyCalorieHistory.reduce((acc, d, i) => {
-    const x = getX(i);
-    const y = getYCalorie(d.caloriesBurned);
-    return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
-  }, '');
+  const burnedPoints = weeklyCalorieHistory.map((d, i) => ({
+    x: paddingLeft + i * stepX,
+    y: scaleYBurned(d.caloriesBurned),
+    val: d.caloriesBurned,
+    day: d.day,
+    date: d.date
+  }));
 
-  // Generate SVG Area for Burned (Cyan Fill)
-  const burnedArea = `${burnedPath} L ${getX(numDays - 1)} ${paddingTop + chartHeight} L ${getX(0)} ${paddingTop + chartHeight} Z`;
+  const progressPoints = getProgressPoints();
 
-  // Generate The Iconic Dashed Zigzag Upward Progress Path ("This is progress")
-  const progressDashedPath = progressPoints.reduce((acc, score, i) => {
-    const x = getX(i);
-    const y = getYProgress(score);
-    return i === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
-  }, '');
+  // Create SVG path string from points (with clean zig-zag line segments matching user sketch)
+  const buildPath = (pts: { x: number; y: number }[]) => {
+    if (!pts.length) return '';
+    return pts.reduce((acc, pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`), '');
+  };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xl space-y-6">
+    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-xl space-y-6">
       
-      {/* Header & View Mode Switcher */}
+      {/* Header & Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-2">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Energy Trajectory & Progress Curve</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            <span>Weekly Progress Tracker</span>
           </div>
-          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            Weekly Calorie Intake vs. Burned
+          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            Intake vs. Burned Calories
           </h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Compare daily nutritional food intake against calories burned through workouts & activity.
+          <p className="text-xs text-slate-400 mt-0.5">
+            Daily caloric comparison & progression curve. Progress fluctuates, but consistency builds results.
           </p>
         </div>
 
-        {/* View Mode Switcher */}
-        <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs self-start sm:self-auto">
+        {/* Filter View Selector - Mobile Friendly */}
+        <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs self-start sm:self-auto overflow-x-auto max-w-full">
           <button
-            onClick={() => setViewMode('all')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-              viewMode === 'all'
-                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+            onClick={() => setViewMode('compare')}
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all ${
+              viewMode === 'compare'
+                ? 'bg-slate-800 text-white shadow-sm border border-slate-700'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            All & Progress
+            Compare Both
           </button>
           <button
-            onClick={() => setViewMode('comparison')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
-              viewMode === 'comparison'
-                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+            onClick={() => setViewMode('intake')}
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all ${
+              viewMode === 'intake'
+                ? 'bg-amber-500 text-black shadow-sm font-bold'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            Intake vs Burned
+            Intake
+          </button>
+          <button
+            onClick={() => setViewMode('burned')}
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all ${
+              viewMode === 'burned'
+                ? 'bg-emerald-500 text-black shadow-sm font-bold'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Burned
           </button>
           <button
             onClick={() => setViewMode('progress')}
-            className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all ${
               viewMode === 'progress'
-                ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+                ? 'bg-cyan-500 text-black shadow-sm font-bold'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            Progress Trajectory
+            This is Progress
           </button>
         </div>
       </div>
 
-      {/* 4 Summary Metric Pill Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
-          <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-amber-400/90 mb-1">
-            <Utensils className="w-3.5 h-3.5" />
-            <span>Weekly Intake</span>
+      {/* Summary KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-semibold text-slate-400">Total Intake (Week)</span>
+            <Utensils className="w-4 h-4 text-amber-400" />
           </div>
-          <span className="text-xl sm:text-2xl font-black text-amber-400">
-            {totalGainedWeek.toLocaleString()} <span className="text-xs font-normal text-slate-400">kcal</span>
-          </span>
-          <p className="text-[10px] text-slate-500 mt-0.5">Avg {meanIntake} kcal/day</p>
+          <p className="text-lg sm:text-2xl font-black text-amber-400">
+            {totalIntakeWeek.toLocaleString()} <span className="text-xs font-normal text-slate-500">kcal</span>
+          </p>
+          <span className="text-[10px] text-slate-500">Avg {meanIntake} kcal/day</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
-          <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-cyan-400/90 mb-1">
-            <Flame className="w-3.5 h-3.5" />
-            <span>Weekly Burned</span>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-semibold text-slate-400">Total Burned (Week)</span>
+            <Flame className="w-4 h-4 text-emerald-400" />
           </div>
-          <span className="text-xl sm:text-2xl font-black text-cyan-400">
-            {totalBurnedWeek.toLocaleString()} <span className="text-xs font-normal text-slate-400">kcal</span>
-          </span>
-          <p className="text-[10px] text-slate-500 mt-0.5">Avg {meanBurned} kcal/day</p>
+          <p className="text-lg sm:text-2xl font-black text-emerald-400">
+            {totalBurnedWeek.toLocaleString()} <span className="text-xs font-normal text-slate-500">kcal</span>
+          </p>
+          <span className="text-[10px] text-slate-500">Avg {meanBurned} kcal/day</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
-          <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-emerald-400/90 mb-1">
-            <Activity className="w-3.5 h-3.5" />
-            <span>Net Energy Balance</span>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-semibold text-slate-400">Weekly Energy Gap</span>
+            {netWeekly > 0 ? (
+              <TrendingUp className="w-4 h-4 text-amber-400" />
+            ) : (
+              <TrendingDown className="w-4 h-4 text-emerald-400" />
+            )}
           </div>
-          <span className="text-xl sm:text-2xl font-black text-white">
-            {netWeeklyBalance > 0 ? `+${netWeeklyBalance.toLocaleString()}` : netWeeklyBalance.toLocaleString()}{' '}
-            <span className="text-xs font-normal text-slate-400">kcal</span>
+          <p className="text-lg sm:text-2xl font-black text-white">
+            {netWeekly > 0 ? `+${netWeekly.toLocaleString()}` : netWeekly.toLocaleString()}{' '}
+            <span className="text-xs font-normal text-slate-500">kcal</span>
+          </p>
+          <span className="text-[10px] text-slate-500">
+            {netWeekly > 0 ? 'Fuel for active days' : 'Calorie deficit zone'}
           </span>
-          <p className="text-[10px] text-emerald-400 mt-0.5">Sustained Fueling</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
-          <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-teal-300 mb-1">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Overall Trajectory</span>
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] font-semibold text-slate-400">Workout Consistency</span>
+            <Calendar className="w-4 h-4 text-cyan-400" />
           </div>
-          <span className="text-xl sm:text-2xl font-black text-emerald-400">
-            ↗ Climbing <span className="text-xs font-normal text-slate-400">+18%</span>
+          <p className="text-lg sm:text-2xl font-black text-cyan-400">
+            {activeDaysCount} <span className="text-xs font-normal text-slate-500">/ 7 days active</span>
+          </p>
+          <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+            <Sparkles className="w-3 h-3" /> Trending Upward!
           </span>
-          <p className="text-[10px] text-slate-500 mt-0.5">Consistent weekly surge</p>
         </div>
       </div>
 
-      {/* Main SVG Graph Container with Axes, Arrows, Curves & The Iconic 'This is progress' Tag */}
-      <div className="bg-[#080c16] rounded-3xl border border-slate-800/90 p-4 sm:p-6 shadow-2xl relative overflow-hidden">
+      {/* GRAPH CANVAS WITH CARTESIAN ARROWS (Directly inspired by "This is Progress" Drawing) */}
+      <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 sm:p-6 relative overflow-hidden space-y-3">
         
-        {/* Legend Indicators */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-          <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
-            {(viewMode === 'all' || viewMode === 'comparison') && (
-              <>
-                <div className="flex items-center space-x-2">
-                  <span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50" />
-                  <span className="text-amber-300">Calories Intake (Food)</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="w-3 h-3 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50" />
-                  <span className="text-cyan-300">Calories Burned (Exercise)</span>
-                </div>
-              </>
+        {/* Graph Legend & Status */}
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs px-1">
+          <div className="flex items-center space-x-4">
+            {(viewMode === 'compare' || viewMode === 'intake') && (
+              <div className="flex items-center space-x-1.5">
+                <span className="w-3 h-0.5 bg-amber-400 rounded-full" />
+                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50" />
+                <span className="text-amber-300 font-semibold text-[11px]">Intake Calories</span>
+              </div>
             )}
-            {(viewMode === 'all' || viewMode === 'progress') && (
-              <div className="flex items-center space-x-2">
-                <span className="w-5 h-0.5 border-t-2 border-dashed border-emerald-400" />
-                <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  Overall Fitness Trajectory (Zigzag Path)
-                </span>
+            {(viewMode === 'compare' || viewMode === 'burned') && (
+              <div className="flex items-center space-x-1.5">
+                <span className="w-3 h-0.5 bg-emerald-400 rounded-full" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
+                <span className="text-emerald-300 font-semibold text-[11px]">Burned Calories</span>
+              </div>
+            )}
+            {(viewMode === 'compare' || viewMode === 'progress') && (
+              <div className="flex items-center space-x-1.5">
+                <span className="w-4 border-b-2 border-dashed border-cyan-400" />
+                <span className="text-cyan-300 font-bold text-[11px]">Progress Trajectory</span>
               </div>
             )}
           </div>
 
-          <span className="text-[11px] text-slate-500 font-medium">
-            Click / Hover any day point to inspect
+          <span className="text-[11px] text-slate-400 font-mono hidden sm:inline-block">
+            Tap any day node to compare
           </span>
         </div>
 
-        {/* SVG Drawing Canvas */}
-        <div className="w-full overflow-x-auto no-scrollbar py-2">
+        {/* SVG Coordinate Graph Container */}
+        <div className="relative w-full aspect-[16/9] sm:aspect-[21/9] min-h-[230px] max-h-[380px]">
           <svg
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            className="w-full min-w-[640px] h-auto select-none"
+            className="w-full h-full overflow-visible"
+            preserveAspectRatio="xMidYMid meet"
           >
             <defs>
-              {/* Gradients */}
-              <linearGradient id="amberGlow" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
-              </linearGradient>
-
-              <linearGradient id="cyanGlow" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.30" />
-                <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.0" />
-              </linearGradient>
-
-              {/* Marker Arrow for Y Axis */}
+              {/* Arrow Head Marker for Y-Axis (pointing up) */}
               <marker
-                id="arrowY"
-                markerWidth="8"
-                markerHeight="8"
-                refX="4"
-                refY="4"
-                orient="auto"
+                id="arrow-y"
+                viewBox="0 0 10 10"
+                refX="5"
+                refY="3"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
               >
-                <path d="M 1 7 L 4 1 L 7 7 Z" fill="#94a3b8" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
               </marker>
 
-              {/* Marker Arrow for X Axis */}
+              {/* Arrow Head Marker for X-Axis (pointing right) */}
               <marker
-                id="arrowX"
-                markerWidth="8"
-                markerHeight="8"
-                refX="4"
-                refY="4"
+                id="arrow-x"
+                viewBox="0 0 10 10"
+                refX="5"
+                refY="3"
+                markerWidth="7"
+                markerHeight="7"
                 orient="auto"
               >
-                <path d="M 1 1 L 7 4 L 1 7 Z" fill="#94a3b8" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
               </marker>
+
+              {/* Linear Gradients for Curves */}
+              <linearGradient id="intakeGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#f59e0b" />
+                <stop offset="100%" stopColor="#fbbf24" />
+              </linearGradient>
+
+              <linearGradient id="burnedGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#059669" />
+                <stop offset="100%" stopColor="#10b981" />
+              </linearGradient>
+
+              <linearGradient id="progressGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#06b6d4" />
+                <stop offset="100%" stopColor="#38bdf8" />
+              </linearGradient>
             </defs>
 
-            {/* Background Grid Lines & Scale Numbers */}
-            {[500, 1000, 1500, 2000].map((val) => {
-              const y = getYCalorie(val);
+            {/* Horizontal Grid Guidelines */}
+            {[0.25, 0.5, 0.75, 1.0].map((frac, idx) => {
+              const yPos = paddingTop + plotHeight * (1 - frac);
               return (
-                <g key={val}>
+                <g key={idx} opacity={0.15}>
                   <line
                     x1={paddingLeft}
-                    y1={y}
-                    x2={svgWidth - paddingRight}
-                    y2={y}
-                    stroke="#1e293b"
+                    y1={yPos}
+                    x2={paddingLeft + plotWidth}
+                    y2={yPos}
+                    stroke="#cbd5e1"
                     strokeDasharray="4 4"
                     strokeWidth="1"
                   />
-                  <text
-                    x={paddingLeft - 12}
-                    y={y + 4}
-                    textAnchor="end"
-                    fill="#64748b"
-                    fontSize="11"
-                    fontFamily="monospace"
-                  >
-                    {val}
-                  </text>
                 </g>
               );
             })}
 
-            {/* Y Axis Line with Top Arrow */}
+            {/* CARTESIAN AXES WITH ARROWS (As in user's image) */}
+            {/* Vertical Y-Axis with arrow at top */}
             <line
               x1={paddingLeft}
-              y1={paddingTop + chartHeight}
+              y1={paddingTop + plotHeight + 6}
               x2={paddingLeft}
-              y2={paddingTop - 15}
+              y2={paddingTop - 18}
               stroke="#64748b"
-              strokeWidth="2.5"
-              markerEnd="url(#arrowY)"
+              strokeWidth="2"
+              markerEnd="url(#arrow-y)"
             />
 
-            {/* Y Axis Label */}
+            {/* Horizontal X-Axis with arrow at right */}
+            <line
+              x1={paddingLeft - 6}
+              y1={paddingTop + plotHeight}
+              x2={paddingLeft + plotWidth + 24}
+              y2={paddingTop + plotHeight}
+              stroke="#64748b"
+              strokeWidth="2"
+              markerEnd="url(#arrow-x)"
+            />
+
+            {/* Y-Axis Label */}
             <text
-              x={paddingLeft - 10}
-              y={paddingTop - 22}
-              textAnchor="middle"
-              fill="#cbd5e1"
-              fontSize="11"
+              x={paddingLeft - 8}
+              y={paddingTop - 24}
+              textAnchor="end"
+              fill="#94a3b8"
+              fontSize="10"
               fontWeight="bold"
+              fontFamily="monospace"
             >
               kcal ↑
             </text>
 
-            {/* X Axis Line with Right Arrow */}
-            <line
-              x1={paddingLeft}
-              y1={paddingTop + chartHeight}
-              x2={svgWidth - paddingRight + 20}
-              y2={paddingTop + chartHeight}
-              stroke="#64748b"
-              strokeWidth="2.5"
-              markerEnd="url(#arrowX)"
-            />
-
-            {/* X Axis Label */}
+            {/* X-Axis Days / Arrow Label */}
             <text
-              x={svgWidth - paddingRight + 35}
-              y={paddingTop + chartHeight + 4}
+              x={paddingLeft + plotWidth + 32}
+              y={paddingTop + plotHeight + 4}
               textAnchor="start"
-              fill="#cbd5e1"
-              fontSize="11"
+              fill="#94a3b8"
+              fontSize="10"
               fontWeight="bold"
+              fontFamily="monospace"
             >
               Days →
             </text>
 
-            {/* CURVE 1: Calories Intake (Amber Filled Area + Smooth Polyline) */}
-            {(viewMode === 'all' || viewMode === 'comparison') && (
-              <>
-                <path d={intakeArea} fill="url(#amberGlow)" />
-                <path
-                  d={intakePath}
-                  fill="none"
-                  stroke="#f59e0b"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </>
+            {/* Selected Day Vertical Guide Line */}
+            {selectedDayIdx !== null && (
+              <line
+                x1={paddingLeft + selectedDayIdx * stepX}
+                y1={paddingTop}
+                x2={paddingLeft + selectedDayIdx * stepX}
+                y2={paddingTop + plotHeight}
+                stroke="#38bdf8"
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+                opacity="0.6"
+              />
             )}
 
-            {/* CURVE 2: Calories Burned (Cyan Filled Area + Crisp Line) */}
-            {(viewMode === 'all' || viewMode === 'comparison') && (
-              <>
-                <path d={burnedArea} fill="url(#cyanGlow)" />
-                <path
-                  d={burnedPath}
-                  fill="none"
-                  stroke="#06b6d4"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </>
+            {/* 1. INTAKE CURVE */}
+            {(viewMode === 'compare' || viewMode === 'intake') && (
+              <path
+                d={buildPath(intakePoints)}
+                fill="none"
+                stroke="url(#intakeGrad)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="filter drop-shadow-[0_2px_8px_rgba(245,158,11,0.4)]"
+              />
             )}
 
-            {/* CURVE 3: The Iconic Upward Zigzag Trajectory ("This is progress") */}
-            {(viewMode === 'all' || viewMode === 'progress') && (
-              <>
-                <path
-                  d={progressDashedPath}
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="3.5"
-                  strokeDasharray="7 5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter="drop-shadow(0px 0px 8px rgba(16, 185, 129, 0.6))"
-                />
-                {/* Nodes along the zigzag path */}
-                {progressPoints.map((score, i) => {
-                  const x = getX(i);
-                  const y = getYProgress(score);
-                  return (
-                    <circle
-                      key={`prog-node-${i}`}
-                      cx={x}
-                      cy={y}
-                      r="4.5"
-                      fill="#10b981"
-                      stroke="#064e3b"
-                      strokeWidth="2"
-                    />
-                  );
-                })}
-              </>
+            {/* 2. BURNED CURVE */}
+            {(viewMode === 'compare' || viewMode === 'burned') && (
+              <path
+                d={buildPath(burnedPoints)}
+                fill="none"
+                stroke="url(#burnedGrad)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="filter drop-shadow-[0_2px_8px_rgba(16,185,129,0.4)]"
+              />
             )}
 
-            {/* Interactive Day Vertical Slices & Node Points */}
+            {/* 3. 'THIS IS PROGRESS' TRAJECTORY LINE (ZIG-ZAG PROGRESSION AS IN DRAWING) */}
+            {(viewMode === 'compare' || viewMode === 'progress') && (
+              <path
+                d={buildPath(progressPoints)}
+                fill="none"
+                stroke="url(#progressGrad)"
+                strokeWidth="2.5"
+                strokeDasharray="6 4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="filter drop-shadow-[0_0_10px_rgba(56,189,248,0.6)]"
+              />
+            )}
+
+            {/* INTERACTIVE DATA NODES */}
             {weeklyCalorieHistory.map((d, i) => {
-              const x = getX(i);
-              const yIntake = getYCalorie(d.caloriesGained);
-              const yBurned = getYCalorie(d.caloriesBurned);
-              const isSelected = selectedDayIndex === i;
+              const x = paddingLeft + i * stepX;
+              const isSelected = i === selectedDayIdx;
+              const ip = intakePoints[i];
+              const bp = burnedPoints[i];
+              const pp = progressPoints[i];
 
               return (
                 <g
                   key={d.day}
-                  className="cursor-pointer"
-                  onClick={() => setSelectedDayIndex(i)}
+                  onClick={() => setSelectedDayIdx(i)}
+                  className="cursor-pointer transition-transform"
                 >
-                  {/* Vertical Hairline Guide on Hover / Select */}
-                  <line
-                    x1={x}
-                    y1={paddingTop}
-                    x2={x}
-                    y2={paddingTop + chartHeight}
-                    stroke={isSelected ? '#10b981' : '#334155'}
-                    strokeWidth={isSelected ? '2' : '1'}
-                    strokeDasharray={isSelected ? 'none' : '3 3'}
-                    opacity={isSelected ? '0.85' : '0.4'}
+                  {/* Broad click target for touch/mobile devices */}
+                  <rect
+                    x={x - stepX / 2}
+                    y={paddingTop}
+                    width={stepX}
+                    height={plotHeight + paddingBottom}
+                    fill="transparent"
                   />
 
-                  {/* Day Label on X Axis */}
+                  {/* Intake Node */}
+                  {(viewMode === 'compare' || viewMode === 'intake') && (
+                    <circle
+                      cx={ip.x}
+                      cy={ip.y}
+                      r={isSelected ? 6 : 4}
+                      fill="#f59e0b"
+                      stroke="#0f172a"
+                      strokeWidth="2"
+                      className="transition-all hover:scale-125"
+                    />
+                  )}
+
+                  {/* Burned Node */}
+                  {(viewMode === 'compare' || viewMode === 'burned') && (
+                    <circle
+                      cx={bp.x}
+                      cy={bp.y}
+                      r={isSelected ? 6 : 4}
+                      fill="#10b981"
+                      stroke="#0f172a"
+                      strokeWidth="2"
+                      className="transition-all hover:scale-125"
+                    />
+                  )}
+
+                  {/* Progress Node */}
+                  {(viewMode === 'compare' || viewMode === 'progress') && (
+                    <circle
+                      cx={pp.x}
+                      cy={pp.y}
+                      r={isSelected ? 5 : 3.5}
+                      fill="#38bdf8"
+                      stroke="#0284c7"
+                      strokeWidth="1.5"
+                    />
+                  )}
+
+                  {/* X-Axis Tick Label */}
                   <text
                     x={x}
-                    y={paddingTop + chartHeight + 22}
+                    y={paddingTop + plotHeight + 18}
                     textAnchor="middle"
-                    fill={isSelected ? '#10b981' : '#94a3b8'}
-                    fontSize="12"
+                    fill={isSelected ? '#38bdf8' : '#94a3b8'}
+                    fontSize={isSelected ? '11' : '10'}
                     fontWeight={isSelected ? 'bold' : 'normal'}
+                    className="select-none"
                   >
                     {d.day}
                   </text>
@@ -437,96 +503,91 @@ export const WeeklyCalorieChart: React.FC = () => {
                   {/* Date Sub-label */}
                   <text
                     x={x}
-                    y={paddingTop + chartHeight + 36}
+                    y={paddingTop + plotHeight + 30}
                     textAnchor="middle"
-                    fill={isSelected ? '#34d399' : '#64748b'}
+                    fill={isSelected ? '#cbd5e1' : '#64748b'}
                     fontSize="9"
-                    fontFamily="monospace"
+                    className="select-none"
                   >
-                    {d.date}
+                    {d.date.replace('Sept ', '9/')}
                   </text>
-
-                  {/* Intake Node (Amber) */}
-                  {(viewMode === 'all' || viewMode === 'comparison') && (
-                    <circle
-                      cx={x}
-                      cy={yIntake}
-                      r={isSelected ? '6.5' : '4.5'}
-                      fill="#f59e0b"
-                      stroke="#1e293b"
-                      strokeWidth="2"
-                      className="transition-all duration-150"
-                    />
-                  )}
-
-                  {/* Burned Node (Cyan) */}
-                  {(viewMode === 'all' || viewMode === 'comparison') && (
-                    <circle
-                      cx={x}
-                      cy={yBurned}
-                      r={isSelected ? '6.5' : '4.5'}
-                      fill="#06b6d4"
-                      stroke="#1e293b"
-                      strokeWidth="2"
-                      className="transition-all duration-150"
-                    />
-                  )}
                 </g>
               );
             })}
           </svg>
         </div>
 
-        {/* The Motivational Signature Caption From The Uploaded Image */}
-        <div className="mt-4 pt-4 border-t border-slate-800/80 flex flex-col items-center justify-center text-center space-y-1.5">
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-black text-sm tracking-wide">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="uppercase tracking-widest text-xs font-mono">This is progress</span>
-          </div>
-          <p className="text-xs text-slate-300 font-medium max-w-lg">
-            Progress is not a straight line. Daily fluctuations and dips are completely normal—the overall habit trajectory is climbing steadily upward.
-          </p>
-        </div>
-      </div>
-
-      {/* Selected Day Direct Comparison Card */}
-      {selectedDay && (
-        <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex flex-col items-center justify-center font-bold">
-              <span className="text-xs text-slate-400 leading-none">{selectedDay.day}</span>
-              <span className="text-sm font-black text-white">{selectedDay.date.split(' ')[1] || '•'}</span>
+        {/* Selected Day Direct Comparison Card (Mobile Optimized) */}
+        {selectedDay && (
+          <div className="mt-2 p-3.5 sm:p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-800 flex flex-col items-center justify-center font-bold text-xs">
+                <span className="text-white leading-none">{selectedDay.day}</span>
+                <span className="text-[9px] text-slate-400 leading-tight mt-0.5">{selectedDay.date}</span>
+              </div>
+              <div>
+                <h4 className="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                  <span>Day Caloric Comparison</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                    {selectedDay.date}
+                  </span>
+                </h4>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300 mt-0.5">
+                  <span>
+                    Intake: <strong className="text-amber-400">{selectedDay.caloriesGained.toLocaleString()} kcal</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Burned: <strong className="text-emerald-400">{selectedDay.caloriesBurned.toLocaleString()} kcal</strong>
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>{selectedDay.day}, {selectedDay.date} Energy Balance</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-emerald-400 border border-slate-700">
-                  Day {selectedDayIndex + 1} of 7
-                </span>
-              </h4>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Intake: <strong className="text-amber-400">{selectedDay.caloriesGained} kcal</strong> • Burned:{' '}
-                <strong className="text-cyan-400">{selectedDay.caloriesBurned} kcal</strong> • Net Balance:{' '}
-                <strong className="text-white">
-                  {selectedDay.netBalance > 0 ? `+${selectedDay.netBalance}` : selectedDay.netBalance} kcal
-                </strong>
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center space-x-4 self-end md:self-auto text-xs">
-            <div className="text-right">
-              <span className="text-slate-500 text-[10px] block">Daily Comparison</span>
-              <span className="font-bold text-emerald-400">
-                {selectedDay.caloriesBurned >= 300 ? '🔥 High Burn Milestone' : '🌱 Steady Consistency'}
+            {/* Net Energy Status Pill */}
+            <div className="flex items-center space-x-2 self-stretch sm:self-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
+              <span className="text-[11px] text-slate-400">Net Energy:</span>
+              <span
+                className={`px-2.5 py-1 rounded-full text-xs font-bold font-mono ${
+                  selectedDay.netBalance <= 1600
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                }`}
+              >
+                {selectedDay.netBalance > 0 ? `+${selectedDay.netBalance} kcal` : `${selectedDay.netBalance} kcal`}
               </span>
             </div>
-            <div className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* ICONIC MOTIF FOOTER - DIRECTLY HONORING THE USER'S ATTACHED SKETCH */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 shrink-0">
+            <TrendingUp className="w-5 h-5" />
+          </div>
+          <div>
+            <h5 className="text-sm font-extrabold text-white tracking-wide flex items-center justify-center sm:justify-start gap-2">
+              <span>This is progress</span>
+              <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono">
+                Zig-Zag Momentum
+              </span>
+            </h5>
+            <p className="text-xs text-slate-400 mt-0.5 max-w-xl">
+              Fitness is not a straight line. Daily calorie intake and workout burn fluctuate with study exams and recovery days, but staying consistent drives long-term transformation.
+            </p>
           </div>
         </div>
-      )}
+
+        <div className="shrink-0">
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 text-slate-200 text-xs font-semibold border border-slate-700">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>On Track</span>
+          </span>
+        </div>
+      </div>
 
     </div>
   );

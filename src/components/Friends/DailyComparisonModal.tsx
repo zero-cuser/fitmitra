@@ -55,7 +55,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
       userWins: caloriesGainedToday <= friend.todayStats.caloriesGained // Lower or mindful intake
     },
     {
-      label: 'Desk Posture Score',
+      label: 'Form & Consistency Score',
       icon: <ShieldCheck className="w-4 h-4 text-cyan-400" />,
       userVal: postureScoreToday,
       friendVal: friend.todayStats.postureScore,
