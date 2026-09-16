@@ -39,7 +39,7 @@ export const FriendsHub: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-2">
               <Users className="w-3.5 h-3.5" />
-              <span>Campus Social Network</span>
+              <span>Friends Network</span>
             </div>
             <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
               Friends & Daily Progress Hub

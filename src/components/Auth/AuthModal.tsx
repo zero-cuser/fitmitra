@@ -16,7 +16,8 @@ import {
   Droplets,
   Activity,
   Ruler,
-  Weight
+  Weight,
+  Zap
 } from 'lucide-react';
 import { useAuth, calculateCalorieAndWaterNeeds } from '@/context/AuthContext';
 import { FitnessGoal } from '@/types/fitness';
@@ -28,7 +29,7 @@ export const AuthModal: React.FC = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [goal, setGoal] = useState<FitnessGoal>('posture');
+  const [selectedGoals, setSelectedGoals] = useState<FitnessGoal[]>(['strength', 'fat_loss']);
   const [error, setError] = useState<string | null>(null);
 
   // Calorie & Hydration Calculation Metrics
@@ -38,10 +39,20 @@ export const AuthModal: React.FC = () => {
   const [weightKg, setWeightKg] = useState<number>(68);
   const [activityLevel, setActivityLevel] = useState<'sedentary' | 'light' | 'moderate' | 'very_active'>('moderate');
 
+  const toggleGoal = (id: FitnessGoal) => {
+    setSelectedGoals((prev) => {
+      if (prev.includes(id)) {
+        if (prev.length === 1) return prev; // Keep at least one goal
+        return prev.filter((g) => g !== id);
+      }
+      return [...prev, id];
+    });
+  };
+
   // Dynamically calculate recommended energy and hydration needs
   const calculatedNeeds = useMemo(() => {
-    return calculateCalorieAndWaterNeeds(gender, weightKg, heightCm, age, activityLevel, goal);
-  }, [gender, weightKg, heightCm, age, activityLevel, goal]);
+    return calculateCalorieAndWaterNeeds(gender, weightKg, heightCm, age, activityLevel, selectedGoals);
+  }, [gender, weightKg, heightCm, age, activityLevel, selectedGoals]);
 
   if (!isAuthModalOpen) return null;
 
@@ -50,7 +61,7 @@ export const AuthModal: React.FC = () => {
     setError(null);
 
     if (authModalTab === 'signup') {
-      const res = signup(name, username, email, password, goal, {
+      const res = signup(name, username, email, password, selectedGoals, {
         age,
         gender,
         heightCm,
@@ -82,28 +93,40 @@ export const AuthModal: React.FC = () => {
 
   const goalsList: { id: FitnessGoal; label: string; icon: React.ReactNode; desc: string }[] = [
     {
-      id: 'posture',
-      label: 'Posture Correction',
-      icon: <ShieldCheck className="w-4 h-4 text-emerald-400" />,
-      desc: 'Reverse tech-neck & desk hunch'
+      id: 'fat_loss',
+      label: 'Fat Loss & Burn',
+      icon: <Flame className="w-4 h-4 text-amber-400" />,
+      desc: 'High metabolic calorie burn & definition'
     },
     {
       id: 'strength',
       label: 'Strength & Muscle',
       icon: <Dumbbell className="w-4 h-4 text-cyan-400" />,
-      desc: 'Build bodyweight push/squat power'
-    },
-    {
-      id: 'mobility',
-      label: 'Mobility & Hip Flow',
-      icon: <Compass className="w-4 h-4 text-teal-400" />,
-      desc: 'Decompress hips, knees & spine'
+      desc: 'Build bodyweight power & muscular physique'
     },
     {
       id: 'cardio',
       label: 'Cardio & Stamina',
       icon: <HeartPulse className="w-4 h-4 text-rose-400" />,
-      desc: 'Boost endurance & metabolic burn'
+      desc: 'Enhance endurance, stamina & aerobic energy'
+    },
+    {
+      id: 'toning',
+      label: 'Lean Muscle & Toning',
+      icon: <Sparkles className="w-4 h-4 text-emerald-400" />,
+      desc: 'Sculpt lean athletic body & definition'
+    },
+    {
+      id: 'athletic',
+      label: 'Agility & Speed',
+      icon: <Zap className="w-4 h-4 text-yellow-400" />,
+      desc: 'Explosive functional agility & power'
+    },
+    {
+      id: 'wellness',
+      label: 'Everyday Vitality',
+      icon: <Activity className="w-4 h-4 text-teal-400" />,
+      desc: 'Healthy joints, daily energy & well-being'
     }
   ];
 
@@ -363,28 +386,37 @@ export const AuthModal: React.FC = () => {
 
           {authModalTab === 'signup' && (
             <div>
-              <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Primary Fitness Goal
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                  What is your fitness goal?
+                </label>
+                <span className="text-[10px] text-emerald-400 font-semibold">Select 1 or more</span>
+              </div>
               <div className="grid grid-cols-2 gap-2">
-                {goalsList.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setGoal(item.id)}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      goal === item.id
-                        ? 'border-emerald-500 bg-emerald-500/10 text-white ring-1 ring-emerald-500/30'
-                        : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      {item.icon}
-                      <span className="text-xs font-bold text-slate-200">{item.label}</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{item.desc}</p>
-                  </button>
-                ))}
+                {goalsList.map((item) => {
+                  const isSelected = selectedGoals.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => toggleGoal(item.id)}
+                      className={`p-2.5 rounded-xl border text-left transition-all relative ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-500/15 text-white ring-1 ring-emerald-500/40 shadow-sm shadow-emerald-500/10'
+                          : 'border-slate-800 bg-slate-950/50 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      {isSelected && (
+                        <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/80" />
+                      )}
+                      <div className="flex items-center space-x-2">
+                        {item.icon}
+                        <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-slate-200'}`}>{item.label}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 line-clamp-1">{item.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

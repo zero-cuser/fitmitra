@@ -97,18 +97,17 @@ export const smoothLandmarksEMA = (
 export const checkLandmarksInFrame = (
   landmarks: LandmarkPoint[],
   indices: number[],
-  minConfidence = 0.45
+  minConfidence = 0.20
 ): boolean => {
   if (!landmarks || landmarks.length < 33) return false;
-  return indices.every((idx) => {
+  let visibleCount = 0;
+  for (const idx of indices) {
     const pt = landmarks[idx];
-    if (!pt) return false;
-    const vis = pt.visibility !== undefined ? pt.visibility : 1.0;
-    if (vis < minConfidence) return false;
-    // Basic boundary check
-    if (pt.x < 0.01 || pt.x > 0.99 || pt.y < 0.01 || pt.y > 0.99) return false;
-    return true;
-  });
+    if (pt && (pt.visibility === undefined || pt.visibility >= minConfidence)) {
+      visibleCount++;
+    }
+  }
+  return visibleCount >= Math.min(2, indices.length);
 };
 
 export interface ExerciseTrackerState {
@@ -120,21 +119,16 @@ export interface ExerciseTrackerState {
   lastRepTime: number;
 }
 
-// 1. FORGIVING SQUAT KINEMATICS
-// Accessible thresholds: Down (<125° knee flexion), Up (>145°). Form faults give helpful cues without blocking reps.
+// 1. FORGIVING SQUAT KINEMATICS - Detects all squat movements from either side
 export const evaluateSquatLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
   tracker?: ExerciseTrackerState
 ): TelemetryResult => {
-  const req = [
-    LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.LEFT_KNEE,
-    LANDMARK_INDEX.LEFT_ANKLE,
-    LANDMARK_INDEX.LEFT_SHOULDER
-  ];
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], 0.20);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], 0.20);
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
+  const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.bottomReached = false;
     return {
@@ -142,21 +136,26 @@ export const evaluateSquatLandmarks = (
       angle: 160,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step into camera view' }],
-      isGoodForm: false,
-      formCue: 'Step into camera view'
+      formFaults: [],
+      isGoodForm: true,
+      formCue: 'Camera active • Move into frame'
     };
   }
 
-  // Choose the leg with highest visibility
+  // Choose leg with best visibility
   const leftVis = (landmarks[LANDMARK_INDEX.LEFT_KNEE]?.visibility ?? 0.8) + (landmarks[LANDMARK_INDEX.LEFT_HIP]?.visibility ?? 0.8);
   const rightVis = (landmarks[LANDMARK_INDEX.RIGHT_KNEE]?.visibility ?? 0.8) + (landmarks[LANDMARK_INDEX.RIGHT_HIP]?.visibility ?? 0.8);
   const isLeft = leftVis >= rightVis;
 
   const hip = landmarks[isLeft ? LANDMARK_INDEX.LEFT_HIP : LANDMARK_INDEX.RIGHT_HIP];
   const knee = landmarks[isLeft ? LANDMARK_INDEX.LEFT_KNEE : LANDMARK_INDEX.RIGHT_KNEE];
-  const ankle = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ANKLE : LANDMARK_INDEX.RIGHT_ANKLE];
+  let ankle = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ANKLE : LANDMARK_INDEX.RIGHT_ANKLE];
   const shoulder = landmarks[isLeft ? LANDMARK_INDEX.LEFT_SHOULDER : LANDMARK_INDEX.RIGHT_SHOULDER];
+
+  // If ankle is cropped out of bottom of camera, extrapolate straight down from knee
+  if (!ankle || (ankle.visibility ?? 0) < 0.20) {
+    ankle = { x: knee.x, y: Math.min(1.0, knee.y + 0.35), visibility: 0.5 };
+  }
 
   const kneeAngle = calculateAngle(hip, knee, ankle) || 160;
   const torsoAngle = calculateAngle(shoulder, hip, knee) || 160;
@@ -214,13 +213,10 @@ export const evaluatePushupLandmarks = (
   currentStage: 'up' | 'down',
   tracker?: ExerciseTrackerState
 ): TelemetryResult => {
-  const req = [
-    LANDMARK_INDEX.LEFT_SHOULDER,
-    LANDMARK_INDEX.LEFT_ELBOW,
-    LANDMARK_INDEX.LEFT_WRIST
-  ];
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_ELBOW], 0.20);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_ELBOW], 0.20);
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
+  const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.bottomReached = false;
     return {
@@ -228,9 +224,9 @@ export const evaluatePushupLandmarks = (
       angle: 160,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'elbow', x: 0.5, y: 0.5, message: 'Step into camera view' }],
-      isGoodForm: false,
-      formCue: 'Step into camera view'
+      formFaults: [],
+      isGoodForm: true,
+      formCue: 'Camera active • Move into frame'
     };
   }
 
@@ -280,20 +276,16 @@ export const evaluatePushupLandmarks = (
   };
 };
 
-// 3. FORGIVING JUMPING JACKS KINEMATICS
-// Accessible thresholds: Open (>95° arm abduction), Closed (<70°).
+// 3. FORGIVING JUMPING JACKS KINEMATICS - Detects arm abduction from either side
 export const evaluateJumpingJackLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
   tracker?: ExerciseTrackerState
 ): TelemetryResult => {
-  const req = [
-    LANDMARK_INDEX.LEFT_SHOULDER,
-    LANDMARK_INDEX.LEFT_WRIST,
-    LANDMARK_INDEX.LEFT_HIP
-  ];
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], 0.20);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], 0.20);
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
+  const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.openReached = false;
     return {
@@ -301,17 +293,15 @@ export const evaluateJumpingJackLandmarks = (
       angle: 45,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'wrist', x: 0.5, y: 0.5, message: 'Step into camera view' }],
-      isGoodForm: false,
-      formCue: 'Step into camera view'
+      formFaults: [],
+      isGoodForm: true,
+      formCue: 'Camera active • Move into frame'
     };
   }
 
-  const leftShoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
-  const leftHip = landmarks[LANDMARK_INDEX.LEFT_HIP];
-  const leftWrist = landmarks[LANDMARK_INDEX.LEFT_WRIST];
-
-  const armAngle = calculateAngle(leftHip, leftShoulder, leftWrist) || 45;
+  const leftAngle = calculateAngle(landmarks[LANDMARK_INDEX.LEFT_HIP], landmarks[LANDMARK_INDEX.LEFT_SHOULDER], landmarks[LANDMARK_INDEX.LEFT_WRIST]) || 45;
+  const rightAngle = calculateAngle(landmarks[LANDMARK_INDEX.RIGHT_HIP], landmarks[LANDMARK_INDEX.RIGHT_SHOULDER], landmarks[LANDMARK_INDEX.RIGHT_WRIST]) || 45;
+  const armAngle = Math.max(leftAngle, rightAngle);
 
   let newStage = currentStage;
   let repCompleted = false;
@@ -350,20 +340,16 @@ export const evaluateJumpingJackLandmarks = (
   };
 };
 
-// 4. FORGIVING LUNGE KINEMATICS
-// Accessible thresholds: Down (<125° knee flexion), Up (>145°).
+// 4. FORGIVING LUNGE KINEMATICS - Detects front/back knee flexion from either side
 export const evaluateLungeLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
   tracker?: ExerciseTrackerState
 ): TelemetryResult => {
-  const req = [
-    LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.LEFT_KNEE,
-    LANDMARK_INDEX.LEFT_ANKLE
-  ];
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], 0.20);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], 0.20);
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
+  const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.bottomReached = false;
     return {
@@ -371,9 +357,9 @@ export const evaluateLungeLandmarks = (
       angle: 160,
       stage: currentStage,
       repCompleted: false,
-      formFaults: [{ joint: 'knee', x: 0.5, y: 0.5, message: 'Step into camera view' }],
-      isGoodForm: false,
-      formCue: 'Step into camera view'
+      formFaults: [],
+      isGoodForm: true,
+      formCue: 'Camera active • Move into frame'
     };
   }
 
@@ -381,12 +367,12 @@ export const evaluateLungeLandmarks = (
     landmarks[LANDMARK_INDEX.LEFT_HIP],
     landmarks[LANDMARK_INDEX.LEFT_KNEE],
     landmarks[LANDMARK_INDEX.LEFT_ANKLE]
-  );
+  ) || 160;
   const rightKneeAngle = calculateAngle(
     landmarks[LANDMARK_INDEX.RIGHT_HIP],
     landmarks[LANDMARK_INDEX.RIGHT_KNEE],
     landmarks[LANDMARK_INDEX.RIGHT_ANKLE]
-  );
+  ) || 160;
 
   const activeKneeAngle = Math.min(leftKneeAngle, rightKneeAngle);
 
@@ -425,33 +411,30 @@ export const evaluateLungeLandmarks = (
   };
 };
 
-// 5. FORGIVING PLANK STATIC HOLD ENGINE
-// Wide alignment range: 135° to 205°. As long as user is on floor in plank position, timer counts smoothly.
+// 5. FORGIVING PLANK STATIC HOLD ENGINE - Detects straight horizontal alignment from either side
 export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryResult => {
-  const req = [
-    LANDMARK_INDEX.LEFT_SHOULDER,
-    LANDMARK_INDEX.LEFT_HIP,
-    LANDMARK_INDEX.LEFT_ANKLE
-  ];
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], 0.20);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], 0.20);
 
-  const inFrame = checkLandmarksInFrame(landmarks, req, 0.45);
+  const inFrame = leftIn || rightIn;
   if (!inFrame) {
     return {
       inFrame: false,
       angle: 180,
       stage: 'down',
       repCompleted: false,
-      formFaults: [{ joint: 'hip', x: 0.5, y: 0.5, message: 'Step into camera view' }],
-      isGoodForm: false,
-      formCue: 'Step into camera view'
+      formFaults: [],
+      isGoodForm: true,
+      formCue: 'Camera active • Move into frame'
     };
   }
 
-  const shoulder = landmarks[LANDMARK_INDEX.LEFT_SHOULDER];
-  const hip = landmarks[LANDMARK_INDEX.LEFT_HIP];
-  const ankle = landmarks[LANDMARK_INDEX.LEFT_ANKLE];
+  const isLeft = (landmarks[LANDMARK_INDEX.LEFT_SHOULDER]?.visibility ?? 0) >= (landmarks[LANDMARK_INDEX.RIGHT_SHOULDER]?.visibility ?? 0);
+  const shoulder = landmarks[isLeft ? LANDMARK_INDEX.LEFT_SHOULDER : LANDMARK_INDEX.RIGHT_SHOULDER];
+  const hip = landmarks[isLeft ? LANDMARK_INDEX.LEFT_HIP : LANDMARK_INDEX.RIGHT_HIP];
+  const ankle = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ANKLE : LANDMARK_INDEX.RIGHT_ANKLE] || { x: hip.x, y: hip.y, visibility: 0.5 };
 
-  const straightLineAngle = calculateAngle(shoulder, hip, ankle);
+  const straightLineAngle = calculateAngle(shoulder, hip, ankle) || 180;
 
   // Lenient horizontal prone orientation (supports forearms, hands, knees)
   const vertDelta = Math.abs(shoulder.y - ankle.y);

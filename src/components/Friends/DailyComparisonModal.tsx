@@ -63,7 +63,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
       userWins: postureScoreToday >= friend.todayStats.postureScore
     },
     {
-      label: 'Active Campus Streak',
+      label: 'Active Streak',
       icon: <Trophy className="w-4 h-4 text-yellow-400" />,
       userVal: streakDays,
       friendVal: friend.todayStats.streakDays,

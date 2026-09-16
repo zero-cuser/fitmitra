@@ -15,7 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 
-type ViewMode = 'compare' | 'intake' | 'burned' | 'progress';
+type ViewMode = 'compare' | 'intake' | 'burned';
 
 export const WeeklyCalorieChart: React.FC = () => {
   const { weeklyCalorieHistory } = useWorkout();
@@ -152,16 +152,6 @@ export const WeeklyCalorieChart: React.FC = () => {
           >
             Burned
           </button>
-          <button
-            onClick={() => setViewMode('progress')}
-            className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-all ${
-              viewMode === 'progress'
-                ? 'bg-cyan-500 text-black shadow-sm font-bold'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            This is Progress
-          </button>
         </div>
       </div>
 
@@ -239,12 +229,6 @@ export const WeeklyCalorieChart: React.FC = () => {
                 <span className="w-3 h-0.5 bg-emerald-400 rounded-full" />
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
                 <span className="text-emerald-300 font-semibold text-[11px]">Burned Calories</span>
-              </div>
-            )}
-            {(viewMode === 'compare' || viewMode === 'progress') && (
-              <div className="flex items-center space-x-1.5">
-                <span className="w-4 border-b-2 border-dashed border-cyan-400" />
-                <span className="text-cyan-300 font-bold text-[11px]">Progress Trajectory</span>
               </div>
             )}
           </div>
@@ -412,27 +396,12 @@ export const WeeklyCalorieChart: React.FC = () => {
               />
             )}
 
-            {/* 3. 'THIS IS PROGRESS' TRAJECTORY LINE (ZIG-ZAG PROGRESSION AS IN DRAWING) */}
-            {(viewMode === 'compare' || viewMode === 'progress') && (
-              <path
-                d={buildPath(progressPoints)}
-                fill="none"
-                stroke="url(#progressGrad)"
-                strokeWidth="2.5"
-                strokeDasharray="6 4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="filter drop-shadow-[0_0_10px_rgba(56,189,248,0.6)]"
-              />
-            )}
-
             {/* INTERACTIVE DATA NODES */}
             {weeklyCalorieHistory.map((d, i) => {
               const x = paddingLeft + i * stepX;
               const isSelected = i === selectedDayIdx;
               const ip = intakePoints[i];
               const bp = burnedPoints[i];
-              const pp = progressPoints[i];
 
               return (
                 <g
@@ -472,18 +441,6 @@ export const WeeklyCalorieChart: React.FC = () => {
                       stroke="#0f172a"
                       strokeWidth="2"
                       className="transition-all hover:scale-125"
-                    />
-                  )}
-
-                  {/* Progress Node */}
-                  {(viewMode === 'compare' || viewMode === 'progress') && (
-                    <circle
-                      cx={pp.x}
-                      cy={pp.y}
-                      r={isSelected ? 5 : 3.5}
-                      fill="#38bdf8"
-                      stroke="#0284c7"
-                      strokeWidth="1.5"
                     />
                   )}
 
@@ -570,9 +527,9 @@ export const WeeklyCalorieChart: React.FC = () => {
           </div>
           <div>
             <h5 className="text-sm font-extrabold text-white tracking-wide flex items-center justify-center sm:justify-start gap-2">
-              <span>This is progress</span>
-              <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[10px] font-mono">
-                Zig-Zag Momentum
+              <span>Energy Balance & Consistency</span>
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono">
+                Intake vs. Burned
               </span>
             </h5>
             <p className="text-xs text-slate-400 mt-0.5 max-w-xl">

@@ -1,6 +1,14 @@
 export type ExerciseKey = 'squats' | 'pushups' | 'jumpingJacks' | 'lunges' | 'plank';
 
-export type FitnessGoal = 'posture' | 'strength' | 'mobility' | 'cardio';
+export type FitnessGoal =
+  | 'fat_loss'
+  | 'strength'
+  | 'cardio'
+  | 'toning'
+  | 'athletic'
+  | 'wellness'
+  | 'posture'
+  | 'mobility';
 
 export interface ExerciseConfig {
   id: ExerciseKey;
@@ -49,6 +57,7 @@ export interface UserProfile {
   email: string;
   hostelWing?: string;
   goal: FitnessGoal;
+  goals?: FitnessGoal[];
   joinedDate: string;
   avatarColor: string;
   // Calorie & Body Metrics

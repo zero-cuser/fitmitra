@@ -9,6 +9,7 @@ import { WeeklyCalorieChart } from '@/components/Progress/WeeklyCalorieChart';
 import { NutritionTracker } from '@/components/MessNutrition/NutritionTracker';
 import { FriendsHub } from '@/components/Friends/FriendsHub';
 import { ExamStressReset } from '@/components/Wellness/ExamStressReset';
+import { AIWorkoutAdvisor } from '@/components/AIWorkoutAdvisor/AIWorkoutAdvisor';
 import {
   Zap,
   Flame,
@@ -56,7 +57,7 @@ export default function Home() {
     },
     {
       id: 'friends',
-      label: 'Campus Friends',
+      label: 'Friends',
       icon: <Users className="w-4 h-4 text-cyan-400" />,
       badge: 'Daily Compare'
     },
@@ -114,7 +115,7 @@ export default function Home() {
         {activeTab === 'coach' && (
           <div className="space-y-6 animate-in fade-in duration-200">
             {/* Target Exercise Selector */}
-            <div className="space-y-2">
+            <div id="camera-viewport-top" className="space-y-2">
               <div className="flex items-center justify-between px-1">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                   <Cpu className="w-3.5 h-3.5 text-emerald-400" />
@@ -172,6 +173,9 @@ export default function Home() {
                 <StatsPanel />
               </div>
             </div>
+
+            {/* AI Space & Equipment Workout Advisor */}
+            <AIWorkoutAdvisor />
           </div>
         )}
 

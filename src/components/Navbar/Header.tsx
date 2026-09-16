@@ -25,10 +25,14 @@ export const Header: React.FC = () => {
   const xpProgressPercent = Math.min(xpInCurrentLevel, 100);
 
   const goalLabels: Record<string, string> = {
-    posture: 'Posture Correction',
+    fat_loss: 'Fat Loss & Burn',
     strength: 'Strength & Muscle',
-    mobility: 'Mobility & Flexibility',
-    cardio: 'Cardio & Stamina'
+    cardio: 'Endurance & Stamina',
+    toning: 'Lean Definition',
+    athletic: 'Athletic Agility',
+    wellness: 'Functional Fitness',
+    posture: 'Functional Alignment',
+    mobility: 'Functional Mobility'
   };
 
   return (

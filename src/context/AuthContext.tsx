@@ -17,7 +17,7 @@ export const calculateCalorieAndWaterNeeds = (
   heightCm: number,
   age: number,
   activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active',
-  goal: FitnessGoal
+  goalInput: FitnessGoal | FitnessGoal[]
 ) => {
   // Mifflin-St Jeor Equation
   const s = gender === 'female' ? -161 : gender === 'male' ? 5 : -78;
@@ -32,15 +32,20 @@ export const calculateCalorieAndWaterNeeds = (
   const mult = activityMultipliers[activityLevel] || 1.375;
   const tdee = Math.round(bmr * mult);
 
-  let targetCalories = tdee;
-  if (goal === 'strength' || goal === 'cardio') {
-    targetCalories = tdee + 300;
-  } else if (goal === 'posture') {
-    targetCalories = tdee;
-  } else {
-    targetCalories = Math.max(1300, tdee - 350);
+  const goalsArray = Array.isArray(goalInput) ? goalInput : [goalInput];
+  let calorieAdjustment = 0;
+
+  if (goalsArray.includes('fat_loss') || goalsArray.includes('toning')) {
+    calorieAdjustment -= 350;
+  }
+  if (goalsArray.includes('strength') || goalsArray.includes('athletic')) {
+    calorieAdjustment += 250;
+  }
+  if (goalsArray.includes('cardio')) {
+    calorieAdjustment += 150;
   }
 
+  const targetCalories = Math.max(1350, tdee + calorieAdjustment);
   const targetWaterMl = Math.round(weightKg * 35); // 35 ml per kg bodyweight
 
   return { bmr, tdee, targetCalories, targetWaterMl };
@@ -60,7 +65,7 @@ interface AuthContextType {
     username: string,
     email: string,
     password: string,
-    goal: FitnessGoal,
+    goal: FitnessGoal | FitnessGoal[],
     metrics?: BodyMetricsInput
   ) => { success: boolean; error?: string };
   logout: () => void;
@@ -78,7 +83,8 @@ const DEFAULT_USER: UserProfile = {
   name: 'Aarav Sharma',
   username: 'aarav_fit',
   email: 'aarav.sharma@campus.edu.in',
-  goal: 'posture',
+  goal: 'strength',
+  goals: ['strength', 'fat_loss'],
   joinedDate: 'Sept 2026',
   avatarColor: 'from-emerald-500 to-teal-700',
   age: 20,
@@ -238,7 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     username: string,
     email: string,
     password: string,
-    goal: FitnessGoal,
+    goal: FitnessGoal | FitnessGoal[],
     metrics?: BodyMetricsInput
   ) => {
     if (!name.trim() || !username.trim() || !email.trim() || !password) {
@@ -261,6 +267,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ];
     const pickedColor = colors[Math.floor(Math.random() * colors.length)];
 
+    const goalsArray = Array.isArray(goal) ? goal : [goal];
+    const primaryGoal = goalsArray[0] || 'strength';
+
     let calc = {
       bmr: 1650,
       tdee: 2200,
@@ -275,7 +284,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         metrics.heightCm,
         metrics.age,
         metrics.activityLevel,
-        goal
+        goalsArray
       );
     }
 
@@ -284,7 +293,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       name: name.trim(),
       username: cleanUsername,
       email: email.trim(),
-      goal,
+      goal: primaryGoal,
+      goals: goalsArray,
       joinedDate: 'Sept 2026',
       avatarColor: pickedColor,
       age: metrics?.age || 20,

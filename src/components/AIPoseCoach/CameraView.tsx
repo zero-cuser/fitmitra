@@ -136,30 +136,14 @@ export const CameraView: React.FC = () => {
     ) => {
       ctx.clearRect(0, 0, width, height);
 
-      if (!inFrame) {
-        // Render prominent semi-transparent guidance banner across canvas if user is out of frame
-        ctx.save();
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
-        ctx.fillRect(width * 0.1, height * 0.38, width * 0.8, 64);
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(width * 0.1, height * 0.38, width * 0.8, 64);
-        ctx.fillStyle = '#fef3c7';
-        ctx.font = 'bold 18px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('⚠️ Step back to fit in frame (Confidence > 65% Required)', width / 2, height * 0.38 + 39);
-        ctx.restore();
-        return;
-      }
-
       const faultyJointNames = new Set(formFaults.map((f) => f.joint.toLowerCase()));
 
-      // 1. Draw Vector Skeleton Lines with Neon Glow
+      // 1. Draw Vector Skeleton Lines with Neon Glow for all detected movements
       SKELETON_CONNECTIONS.forEach(([idxA, idxB]) => {
         const ptA = landmarks[idxA];
         const ptB = landmarks[idxB];
         if (!ptA || !ptB) return;
-        if ((ptA.visibility ?? 1) < 0.45 || (ptB.visibility ?? 1) < 0.45) return;
+        if ((ptA.visibility ?? 1) < 0.20 || (ptB.visibility ?? 1) < 0.20) return;
 
         let isFaulty = false;
         if (
@@ -215,7 +199,7 @@ export const CameraView: React.FC = () => {
 
       TRACKED_JOINTS.forEach(({ idx, name }) => {
         const pt = landmarks[idx];
-        if (!pt || (pt.visibility ?? 1) < 0.45) return;
+        if (!pt || (pt.visibility ?? 1) < 0.20) return;
 
         const isFaulty = faultyJointNames.has(name);
         const screenX = (1 - pt.x) * width;
@@ -333,8 +317,8 @@ export const CameraView: React.FC = () => {
             smoothLandmarks: true,
             enableSegmentation: false,
             smoothSegmentation: false,
-            minDetectionConfidence: 0.65, // Enforce confidence > 0.65
-            minTrackingConfidence: 0.65
+            minDetectionConfidence: 0.35,
+            minTrackingConfidence: 0.35
           });
 
           pose.onResults((results: any) => {
