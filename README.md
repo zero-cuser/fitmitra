@@ -2,7 +2,7 @@
 
 > **Hackathon Theme:** Student Innovation — Ideas that can boost fitness activities and assist in keeping fit.  
 > **Target Audience:** College and university students living in hostels, dorms, and shared student housing.  
-> **Status:** Production-Ready (Next.js 14 App Router, TypeScript, 0 Vulnerabilities, 100% Client-Side AI).
+> **Status:** Production-Ready (Next.js 14 App Router, TypeScript, 100% Client-Side AI, Zero Cloud Cost).
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-zero--cuser.github.io%2Ffitmitra-brightgreen.svg)](https://zero-cuser.github.io/fitmitra/)
 [![Next.js](https://img.shields.io/badge/Next.js-14.2_App_Router-black.svg)](https://nextjs.org/)
@@ -15,196 +15,240 @@
 
 ---
 
-## 🤖 AI Agent & Collaborator Context
+## 🌐 Quick Access Links
+
+* 🔗 **Permanent Live Web App (GitHub Pages):** [https://zero-cuser.github.io/fitmitra/](https://zero-cuser.github.io/fitmitra/)
+* 💻 **GitHub Repository:** [https://github.com/zero-cuser/fitmitra](https://github.com/zero-cuser/fitmitra)
+* 🚀 **Local Development Server:** [http://localhost:3000/](http://localhost:3000/)
+
+---
+
+## 🤖 AI Agent & Evaluator Context
 
 > [!NOTE]
 > **To any AI Agent, Evaluator, or Developer Reading This File:**
-> This repository contains **FitMitra**, an AI-driven biometric fitness companion application designed to solve student health and ergonomics crises.
+> This repository contains **FitMitra**, a production-grade, mobile-optimized fitness application engineered specifically for the spatial, nutritional, and academic realities of college hostel life.
 > 
-> * **Project Root:** `fitmitra/`
-> * **Framework:** React 18 + Next.js 14 (App Router) + TypeScript + Tailwind CSS + Lucide Icons + Canvas API + Web Audio + Web Speech Synthesis.
-> * **Core AI Engine:** Client-side MediaPipe Pose (33 skeletal landmarks) running in dynamic client components (`ssr: false`) with typed Euclidean vector kinematics (`AngleMath.ts`).
-> * **5-Pillar Unified Hub (`page.tsx`):**
->   1. **AI Pose Coach**: Real-time camera & interactive simulator for 5 exercises (Squats, Push-ups, Jumping Jacks, Lunges, Plank) with audio coaching.
->   2. **Weekly Calories & Mess Tracker**: 7-day graphical representation comparing calories burned against hostel mess food logged.
->   3. **Campus Friends Hub**: Connect with hostel wing mates, view live activity statuses, cheer peers, and open side-by-side daily progress comparisons.
->   4. **Study Posture Sentinel**: Cervical spine head tilt tracking ($>25^\circ$), 25m Pomodoro study intervals, and 2-min desk micro-stretches.
->   5. **Exam Stress Sanctuary**: 4-7-8 Box Breathing pacer with animated expanding visualizer for vagal nerve reset.
-> * **User Authentication:** Persistent student session (`AuthModal.tsx` & `AuthContext.tsx`) with student username, hostel wing selection, and 1-click Demo Guest sign-in.
-> * **Zero Coin Bloat:** Purely physiological tracking (Level/XP, Workout Streak, Real-time Joint Angle, Calorie Balance, Audio Coaching).
-> * **Zero-Crash Resilience:** Full interactive kinematic simulators for camera-based features so the demo never fails.
-> * **Architecture Decision Records:** Full system memory is logged in [`memory.md`](./memory.md).
+> * **Framework:** Next.js 14 (App Router) + React 18 + TypeScript + Tailwind CSS + Lucide Icons + Canvas API + Web Audio + Web Speech Synthesis.
+> * **Client-Side AI Engine:** MediaPipe Pose (33 skeletal landmarks) running in dynamic client components (`ssr: false`) with typed Euclidean vector kinematics (`AngleMath.ts`).
+> * **Responsive Mobile-First UX:** Scalable vector interfaces, touch-optimized inspection, zero horizontal scroll, and dorm-friendly layouts.
+> * **100% Privacy-Preserving:** Computer vision runs locally inside the browser. No video frames, camera feeds, or private images are ever sent over a network.
+> * **Zero Cloud Infrastructure Cost:** Runs entirely client-side, making deployment virtually free on static platforms like GitHub Pages.
 
 ---
 
 ## 🌟 The Problem Statement
 College students face compounding barriers to physical and mental wellness:
-1. **Sedentary Study Marathons**: 8–12 hours hunched over laptops coding or cramming for exams leads to severe cervical spine compression ("tech-neck"), back stiffness, and brain fog.
-2. **Space & Equipment Scarcity**: Hostel rooms are small (often < 2m × 2m free floor space) with zero workout equipment.
-3. **Hostel Mess Nutrition Deficit**: College mess food is notoriously high in simple carbohydrates and deficient in protein, with no simple way to track macros tailored to Indian campus menus.
-4. **Financial & Intimidation Barriers**: Costly commercial gym memberships and personal trainers are out of reach for student budgets.
-5. **Exam Burnout**: Elevated cortisol, irregular sleep schedules, and dehydration degrade physical and mental performance.
+1. **Space & Equipment Scarcity**: Hostel rooms are cramped (often < 2m × 2m free floor space) with zero workout equipment.
+2. **Roommate & Noise Constraints**: Jumps and loud floor impacts disturb roommates studying or sleeping.
+3. **Hostel Mess Nutrition Deficit**: Mess food is high in refined carbohydrates and low in bioavailable protein, with zero tracking tailored to Indian campus meals.
+4. **Financial Barriers**: Commercial gym memberships and personal trainers are unaffordable for typical student allowances.
+5. **Exam Burnout & Stress**: High academic pressure leads to elevated cortisol, irregular sleep schedules, and dehydration.
 
 ---
 
 ## 💡 The Solution: FitMitra Architecture
 
-**FitMitra** (*Mitra = Friend / Companion in Sanskrit & Hindi*) transforms any student desk or dorm room into an interactive biometric fitness studio and wellness sanctuary:
-
 ```mermaid
 graph TD
-    subgraph Browser Client (Zero Server Latency)
+    subgraph Browser Client (100% Local & Free)
         Webcam[Webcam Stream 720p/1080p] --> MediaPipe[MediaPipe Pose 33 Landmarks]
-        MediaPipe --> Confidence{Confidence > 0.65?}
-        Confidence -- No --> OutOfFrame[Show: Step Back Into Frame]
-        Confidence -- Yes --> Kinematics[AngleMath Vector Kinematics]
-        Kinematics --> ColorCoding[Color Coder: #10b981 Good / #ef4444 Fault]
-        ColorCoding --> CanvasOverlay[HTML5 Canvas Skeletal Overlay]
-        Kinematics --> StateCounter[2-Stage Rep State Machine]
-        StateCounter --> SpeechCoach[Web Speech API Audio Coach (4s throttle)]
-        StateCounter --> Gamification[+10 XP, FitCoins, Chimes, Confetti]
+        MediaPipe --> Smoothing[Exponential Moving Average EMA Smoothing]
+        Smoothing --> Kinematics[Dual-Side AngleMath Vector Engine]
+        Kinematics --> SkeletonCanvas[Neon Skeletal Overlay Canvas]
+        Kinematics --> StateMachine[Forgiving Rep State Machine]
+        StateMachine --> VoiceCoach[Web Speech Audio Coach]
+        StateMachine --> ProgressTracker[Live XP & Daily Rep Logger]
+        
+        Advisor[AI Workout & Space Advisor] -->|Tailored Routine| Kinematics
+        Nutri[Hostel Mess Tracker] --> EnergyCalc[Weekly Intake vs Burned Chart]
+        Friends[Friends Hub] --> CompareModal[Side-by-Side Comparison]
     end
 ```
 
 ---
 
-## 📦 Feature Breakdown & Implemented Modules
+## 📦 Core Pillars & Feature Breakdown
 
-### 1. 🤖 AI Biometric Pose & Rep Coach (`src/components/AIPoseCoach/`)
-* **5 Distinct Exercise Presets**:
-  1. **Squats**: Quads & Glutes | Hip-Knee-Ankle kinematics (Rep depth `< 90°`, Lockout `> 160°`) | 15 reps.
-  2. **Push-ups / Incline Bed Push-ups**: Chest & Triceps | Shoulder-Elbow-Wrist angle (`< 90°`) + Shoulder-Hip-Ankle alignment (`< 15°` deviation) | 12 reps.
-  3. **Jumping Jacks**: Cardio & Deltoids | Shoulder-Hip-Wrist abduction (`> 135°` overhead, `< 45°` down) | 25 reps.
-  4. **Alternating Lunges**: Quads & Hamstrings | Front knee flexion to `90°` & upright torso guard | 16 reps.
-  5. **Desk / Floor Plank**: Core & Stability | Real-time `< 15°` spine deviation guard with isometric hold timer | 30s.
+### 1. 🤖 AI Biometric Pose Coach (`src/components/AIPoseCoach/`)
+* **5 Dedicated Bodyweight Movements**:
+  1. **Bodyweight Squats**: Hip-Knee-Ankle kinematics (`< 125°` flexion down, `> 145°` lockout up) | 15 reps.
+  2. **Push-ups**: Shoulder-Elbow-Wrist angle (`< 125°` bottom, `> 145°` extension up) | 12 reps.
+  3. **Jumping Jacks**: Arm abduction (`> 95°` overhead, `< 70°` down) | 25 reps.
+  4. **Alternating Lunges**: Front/back knee flexion (`< 125°` down, `> 145°` up) | 16 reps.
+  5. **Isometric Plank**: Torso-to-leg horizontal alignment window (`135°–205°`) with live hold stopwatch | 30s.
+* **Dual-Side Full Movement Detection**:
+  * Evaluates **both left and right sides** dynamically. Reps count smoothly whether the user is facing left or right.
+  * Automatically extrapolates leg angles if feet/ankles are cropped by the bottom edge of a laptop screen or tight room boundary.
 * **Dynamic Color-Coded Skeletal Feedback**:
-  * **Neon Emerald Green (`#10b981`)**: Rendered on joints and connecting bones when alignment and depth are correct.
-  * **Amber / Crimson Red (`#ef4444`)**: Highlights offending joints/bones if form faults occur (e.g. knee caving in, hips sagging, shallow depth).
-* **Floating Biomechanical Tooltips**: Contextual correction badges float directly next to problematic joints on canvas (e.g., `⚠️ Go deeper below 90°`, `⚠️ Lift hips up!`).
-* **Audible Voice Coaching**: `window.speechSynthesis` throttled to max once per 4 seconds provides real-time coaching cues (*"Good depth!"*, *"Keep your back straight!"*, *"Chest up!"*).
-* **Infallible Simulator Mode**: Built-in interactive simulator with joint flexion slider allows testing all 5 exercises without a webcam.
+  * **Neon Emerald (`#10b981`)**: Rendered on joints and connecting bones when alignment and depth are on track.
+  * **Crimson Red (`#ef4444`)**: Highlights joint nodes when form needs adjustment (e.g. knee cave, hip sag).
+* **Audible Voice Coaching**: Uses the browser's Web Speech API (throttled to 4s) to deliver real-time spoken cues (*"Good depth!"*, *"Arms out wide!"*, *"Chest up!"*).
+* **Interactive Kinematic Simulator**: Built-in interactive slider simulator allows testing all exercise states without a camera.
 
-### 2. 🪑 Study Posture Sentinel & Pomodoro Fitness (`src/components/PostureSentinel/`)
-* **Cervical Spine Slouch Detector**: Analyzes head-to-shoulder vertical tilt angle; triggers chime and visual warning when students hunch over laptops.
-* **Posture Rating (0–100%)**: Real-time ergonomic score.
-* **Pomodoro Micro-Breaks (25m / 50m Focus Sessions)**: Automatically triggers 2-minute spinal micro-stretches (Neck rolls, Thoracic twist, Doorway chest opener, Coder wrist stretch).
+### 2. 🧠 Smart AI Workout & Space Advisor (`src/components/AIWorkoutAdvisor/`)
+* **Tailors Workouts to Room Space & Equipment**:
+  * **Space Options**: Tight Dorm Bedside (~2×2 ft), Room Floor (~5×5 ft), Open Living Room, Campus Gym.
+  * **Equipment**: Bodyweight Only, Study Desk / Chair, Loaded Book Backpack, Resistance Bands, Dumbbells.
+  * **Noise Sensitivity**: 🤫 **Zero-Noise Mode** (no-hop silent stepping, roommate-friendly) vs. Dynamic Jumps.
+  * **Session Length**: 5-Min Quick Blast, 15-Min Dorm Session, 30-Min Full Circuit.
+* **1-Click Live Camera Hookup**: Every generated routine includes a **"Track Reps in AI Pose Coach"** button that automatically selects the exercise and scrolls up to the camera viewport.
 
-### 3. 🏋️ Dorm Room Workout Hub (`src/components/DormWorkouts/`)
-* **2m × 2m Zero-Gear Circuits**: Curated workouts fitting between a dorm bed and desk.
-* **Routines**:
-  * *5-Min Pre-Exam Cortisol Flush* (Exam anxiety relief)
-  * *10-Min Dorm Room HIIT Ignite* (Fat burn & metabolism)
-  * *15-Min Study Marathon Power Routine* (Spinal endurance)
-* **Interactive Workout Player**: Audio countdowns, next-exercise teasers, and confetti celebrations.
+### 3. 📊 Weekly Calorie Progress Chart (`src/components/Progress/`)
+* **Intake vs. Burned Calorie Comparison**:
+  * **Amber Line & Data Nodes**: Daily calories consumed from hostel meals and snacks.
+  * **Emerald Line & Data Nodes**: Daily calories expended from workouts and activity.
+  * **Cartesian Coordinate Axes**: Styled with clean directional arrowheads (`↑ kcal`, `Days →`).
+* **Interactive Mobile-First Tooltips**: Tap or click any day node (Mon–Sun) to inspect exact calories consumed, burned, and daily net deficit/surplus.
+* **Filter Views**: Toggle between `Compare Both`, `Intake`, and `Burned`.
 
-### 4. 🍛 Hostel Mess Nutrition & ₹100 Budget Protein Guide (`src/components/MessNutrition/`)
-* **Preloaded Campus Mess Database**: Calorie, protein, carb, and fat breakdowns for Dal, Roti, Rice, Rajma, Paneer Bhurji, Boiled Eggs, Maggi, and Hostel Chai.
-* **Visual Macro Rings**: Real-time progress bars for Calories, Protein (g), Carbs (g), and Fats (g).
-* **₹100 Student Protein Survival Guide**: Step-by-step student hacks for Soya chunks (26g protein for ₹12), Chana Sattu (16g protein for ₹15), boiled eggs, and green moong sprouts.
+### 4. 👥 Friends & Daily Progress Hub (`src/components/Friends/`)
+* **Peer Connection**: Connect with friends and hostel wing mates.
+* **Side-by-Side Comparison Modal**:
+  * Compare daily Reps, Calories Burned, Calories Gained, Workout Form Score, and Active Streaks.
+  * Direct win/loss highlights indicating which friend is leading.
+* **Social Motivation**: Send 1-click cheers that trigger celebratory confetti.
 
-### 5. 🏆 Campus Squads & FitCoin Arena (`src/components/Gamification/`)
-* **Hostel Wing Rivalry Leaderboard**: Simulated campus dorm standings (Aryabhatta Wing A vs Ramanujan Wing B vs Off-Campus).
-* **Daily Student Quests**: Micro-challenges that reward FitCoins and XP.
-* **FitCoin Student Perks Shop**: Redeem mock tokens for dorm washing machines, night canteen smoothie vouchers, and campus gym passes.
-* **Student Badges**: Unlockable achievements (3-Day Dorm Warrior, 50 Rep Sentinel, Ergonomic Scholar).
+### 5. 🍛 Hostel Mess Nutrition & ₹100 Budget Protein Guide (`src/components/MessNutrition/`)
+* **Campus Mess Database**: Instant calorie and macro logging for Indian college menus (Dal Tadka, Roti, Rice, Rajma, Paneer Bhurji, Boiled Eggs, Hostel Chai, Sattu Drink).
+* **Real-Time Macro Rings**: Circular progress gauges for Calories, Protein (g), Carbs (g), and Fats (g).
+* **₹100 Student Protein Guide**: Practical hostel hacks for affordable nutrition:
+  * *Soya chunks* (26g protein for ₹12)
+  * *Chana Sattu* (16g protein for ₹15)
+  * *Boiled eggs & sprouted green moong*.
 
-### 6. 🧘 Exam Stress & Mind-Body Sanctuary (`src/components/Wellness/`)
-* **4-7-8 Guided Box Breathing Visualizer**: Animated visualizer (Inhale 4s, Hold 7s, Exhale 8s) to subdue cortisol spikes before exams.
-* **Hostel Hydration Sentinel**: Quick 250ml / 500ml logging toward a 2.5L daily target.
-* **20-20-20 Digital Eye Guard**: Rest timer preventing computer screen eye strain.
+### 6. 👤 Personalized Profiles & Multi-Select Goals (`src/components/Auth/`)
+* **Multi-Select Fitness Goals**: Users can select one or more targets during onboarding:
+  * **Fat Loss & Burn**
+  * **Strength & Muscle**
+  * **Cardio & Stamina**
+  * **Lean Muscle & Toning**
+  * **Agility & Speed**
+  * **Everyday Vitality**
+* **Scientific Energy & Water Calculators**: Automatically computes BMR, TDEE, recommended daily calorie intake, and daily water hydration targets using the Mifflin-St Jeor formula.
+* **1-Click Demo Sign-in**: Instant evaluator login for Smart India Hackathon jury review.
+
+### 7. 🧘 Exam Stress & Mind-Body Sanctuary (`src/components/Wellness/`)
+* **4-7-8 Guided Box Breathing Visualizer**: Expanding pacer circle (Inhale 4s, Hold 7s, Exhale 8s) for vagal nerve calming before exams.
+* **Daily Hydration Tracker**: 250ml / 500ml quick-log buttons toward personalized daily targets.
+* **20-20-20 Digital Eye Guard**: Screen rest reminder to prevent study eye fatigue.
 
 ---
 
-## 📂 Complete File & Directory Map
+## 📂 Project Structure
 
 ```
 fitmitra/
-├── index.html                           # Root HTML with MediaPipe CDN fallbacks
-├── package.json                         # Dependencies & scripts
-├── vite.config.js                       # Vite configuration (port 3000, host: true)
-├── tailwind.config.js                   # Dark-neon athletic theme tokens
-├── postcss.config.js                    # PostCSS plugins
-├── prd.md                               # Product Requirements Document
-├── techstack.md                         # Technical Architecture Document
-├── phases.md                            # Development Roadmap & Sprint Phases
-├── memory.md                            # Architecture Decision Records & System Memory
-├── SIH_PITCH_AND_VIVA_QA.md             # Smart India Hackathon Presentation & Jury Defense
-├── README.md                            # Comprehensive Project Guide & AI Context
-├── public/
-└── src/
-    ├── main.jsx                         # React entrypoint
-    ├── App.jsx                          # Main container, tab switcher, ErrorBoundary
-    ├── index.css                        # Tailwind directives, glassmorphic styling
-    ├── context/
-    │   └── FitnessContext.jsx           # Global state, LocalStorage persistence, XP/Coins
-    ├── data/
-    │   ├── exercises.js                 # 5 exercise presets, micro-breaks, routines
-    │   ├── messMenu.js                  # Campus mess food database & budget hacks
-    │   └── campusLeaderboard.js         # Hostel wings, daily quests, student badges
-    ├── utils/
-    │   ├── voiceCoach.js                # Web Speech API wrapper with 4s throttling
-    │   └── soundEffects.js              # Web Audio API synthetic beeps & chimes
-    └── components/
-        ├── ErrorBoundary.jsx            # Safe runtime fallback guard
-        ├── Navbar.jsx                   # Header with streak flames, coins, level badge
-        ├── AIPoseCoach/
-        │   ├── CameraView.jsx           # MediaPipe integration, canvas skeleton, HUD
-        │   ├── PoseCoach.jsx            # 5-preset tabs, rep progression, +10 XP awards
-        │   └── AngleMath.js             # Vector kinematics, confidence gating, form faults
-        ├── PostureSentinel/
-        │   └── PostureSentinel.jsx      # Slouch detector & 25m/50m Pomodoro breaks
-        ├── DormWorkouts/
-        │   └── WorkoutHub.jsx           # Dorm circuits & active countdown player
-        ├── MessNutrition/
-        │   └── NutritionTracker.jsx     # Mess meal logger & ₹100 protein guide
-        ├── Gamification/
-        │   └── LeaderboardAndQuests.jsx # Quests, hostel leaderboard, FitCoin perks shop
-        └── Wellness/
-            └── ExamStressReset.jsx      # 4-7-8 breathing circle, hydration, eye rest
+├── out/                                 # Next.js production static export (deployed to GitHub Pages)
+│   ├── .nojekyll                        # Bypasses Jekyll processing on GitHub Pages
+│   ├── index.html                       # Production SPA entrypoint
+│   └── _next/static/                    # Bundled chunks, styles, and assets
+├── public/                              # Static public assets
+├── src/
+│   ├── app/
+│   │   ├── globals.css                  # Global Tailwind directives & dark theme styling
+│   │   ├── layout.tsx                   # Root HTML layout & font declarations
+│   │   └── page.tsx                     # Main 4-tab hub container (Coach, Nutrition, Friends, Sanctuary)
+│   ├── components/
+│   │   ├── AIPoseCoach/
+│   │   │   ├── AngleMath.ts             # Dual-side 3D vector kinematics & rep state machines
+│   │   │   ├── CameraView.tsx           # MediaPipe Pose canvas viewport & neon skeleton renderer
+│   │   │   └── StatsPanel.tsx           # Real-time rep counter, target progress, & voice coach toggle
+│   │   ├── AIWorkoutAdvisor/
+│   │   │   └── AIWorkoutAdvisor.tsx     # Space/equipment generator with 1-click camera integration
+│   │   ├── Auth/
+│   │   │   └── AuthModal.tsx            # Multi-select fitness goals, Mifflin-St Jeor calculator & login
+│   │   ├── ExerciseSelector/
+│   │   │   └── ExerciseTabs.tsx         # 5 preset exercise tabs with target muscle tags
+│   │   ├── Friends/
+│   │   │   ├── DailyComparisonModal.tsx # Side-by-side daily stat comparison modal
+│   │   │   └── FriendsHub.tsx           # Friends list, activity statuses, and cheer system
+│   │   ├── MessNutrition/
+│   │   │   └── NutritionTracker.tsx     # Indian mess menu logger & ₹100 protein guide
+│   │   ├── Navbar/
+│   │   │   └── Header.tsx               # Top navigation, streak counter, level XP & profile menu
+│   │   ├── Progress/
+│   │   │   └── WeeklyCalorieChart.tsx   # Cartesian Intake vs. Burned calorie comparison chart
+│   │   └── Wellness/
+│   │       └── ExamStressReset.tsx      # 4-7-8 breathing visualizer, hydration & eye guard
+│   ├── context/
+│   │   ├── AuthContext.tsx              # User state, multi-goal support & biometric calculations
+│   │   └── WorkoutContext.tsx           # Kinematic telemetry, rep records & calorie history
+│   ├── data/
+│   │   ├── exercises.ts                 # Formal configs & instructions for the 5 exercises
+│   │   └── messMenu.ts                  # Nutritional data for Indian college mess food items
+│   ├── types/
+│   │   └── fitness.ts                   # TypeScript interfaces for kinematics, goals, meals & friends
+│   └── utils/
+│       ├── soundEffects.ts              # Web Audio API synthetic beeps & chimes
+│       └── voiceCoach.ts                # Web Speech API synthesized spoken coaching cues
+├── next.config.mjs                      # Next.js configuration (static export, basePath, assetPrefix)
+├── tailwind.config.ts                   # Tailwind theme colors and animations
+├── tsconfig.json                        # TypeScript strict compiler configuration
+└── package.json                         # Dependencies and npm scripts
 ```
 
 ---
 
-## 🚀 Quickstart & How to Run
+## 🚀 Getting Started & Local Setup
 
 ### Prerequisites
-* **Node.js**: v18+ (tested on Node v24)
-* **Package Manager**: npm (on Windows PowerShell use `npm.cmd`)
+* **Node.js**: v18 or higher (tested on Node v20 & v24)
+* **Package Manager**: `npm`
+
+### Installation & Run
 
 ```powershell
-# Navigate to project directory
-cd c:\Users\lenovo\OneDrive\Desktop\furqaankibrownie\fitmitra
+# 1. Clone the repository
+git clone https://github.com/zero-cuser/fitmitra.git
+cd fitmitra
 
-# Install dependencies (if not already installed)
-npm.cmd install
+# 2. Install dependencies
+npm install
 
-# Start development server
-npm.cmd run dev
+# 3. Start the local development server
+npm run dev
 
-# Build for production
-npm.cmd run build
+# 4. Open in browser
+# Navigate to http://localhost:3000/
 ```
 
-Once running, access the web app at:
-👉 **[http://localhost:3000/](http://localhost:3000/)** (or `http://127.0.0.1:3000/` or network IP)
+### Production Build & Static Export
+
+```powershell
+# Build and export static site to out/
+npm run build
+
+# Preview static export locally
+npx serve out
+```
 
 ---
 
-## 🧪 Verification & Build Status
+## 🧪 Testing & Kinematic Verification
 
-* **Production Compilation**: `npm.cmd run build` transforms **1,598 modules** in **7.74s** with zero errors or warnings.
-* **Network Binding**: Configured with `host: true` in `vite.config.js` to listen across `0.0.0.0`, `localhost`, and LAN.
-* **Error Containment**: `<ErrorBoundary />` prevents any unhandled component crash from breaking the application.
+The repository includes a dedicated kinematics test suite to verify rep detection across all exercises:
+
+```powershell
+node scratch/verify_rep_engine.mjs
+```
+
+**Verification Results: 8/8 Tests Passed (100% Success)**
+* ✅ **Squats**: Down flexion (`< 125°`), upward recovery (`> 145°`), dual-side tracking.
+* ✅ **Push-ups**: Elbow flexion (`< 125°`), lockout (`> 145°`), prone orientation.
+* ✅ **Jumping Jacks**: Overhead abduction (`> 95°`), closed recovery (`< 70°`).
+* ✅ **Lunges**: Front knee flexion (`< 125°`), upward rise (`> 145°`).
+* ✅ **Plank**: Stable horizontal alignment within the `135°–205°` window.
 
 ---
 
-## 🔮 Roadmap / Future Expansion Ideas
-1. **The Study Toll (Pomodoro Fitness Lockout)**: Enforce a 10-squat "toll" to unlock the next study block.
-2. **Mess Thali AI Scanner**: Computer vision plate analyzer for Indian hostel thalis.
-3. **Webcam PPG Heart Rate Monitor**: Contactless heart rate & stress calculation via facial micro-color shifts.
-4. **FitBuddy Dorm Mascot**: Virtual desktop pet that reflects student movement and posture habits.
+## 🔒 Privacy & Safety Guarantee
+
+* **100% Client-Side Processing**: MediaPipe Pose processes camera frames directly on the user's GPU/CPU via WebAssembly.
+* **No Server Storage**: No camera footage, joint coordinate logs, or user biometric data are transmitted across any external network.
+* **Camera Access Control**: The camera stream only activates when the user explicitly clicks *"Start AI Pose Coach"* and terminates immediately upon pausing or switching tabs.
 
 ---
 
 ## 📜 License
-Built for the **Student Innovation Hackathon**. Open-source under MIT License.
+Developed for the **Student Innovation Hackathon**. Open-source under the [MIT License](LICENSE).
