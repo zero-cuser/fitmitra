@@ -1,12 +1,27 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { DailyCalorieRecord, ExerciseKey, FormFault, LoggedMeal, MessMenuItem, TelemetryResult, WorkoutState } from '@/types/fitness';
 import { EXERCISE_CATALOG } from '@/data/exercises';
 import { sounds } from '@/utils/soundEffects';
 import { coachVoice } from '@/utils/voiceCoach';
 import { repEngine } from '@/components/AIPoseCoach/AngleMath';
 import confetti from 'canvas-confetti';
+
+import {
+  validateWeeklyCalorieRecords,
+  STORAGE_KEY_WORKOUT,
+  STORAGE_KEY_NUTRITION,
+  STORAGE_KEY_CALORIES_WEEK,
+  STORAGE_KEY_WATER
+} from './workoutStorage';
+export {
+  validateWeeklyCalorieRecords,
+  STORAGE_KEY_WORKOUT,
+  STORAGE_KEY_NUTRITION,
+  STORAGE_KEY_CALORIES_WEEK,
+  STORAGE_KEY_WATER
+};
 
 interface WorkoutContextType extends WorkoutState {
   setSelectedExercise: (exercise: ExerciseKey) => void;
@@ -36,10 +51,6 @@ interface WorkoutContextType extends WorkoutState {
   resetWater: () => void;
 }
 
-const STORAGE_KEY_WORKOUT = 'FITMITRA_WORKOUT_PROGRESS_V3';
-const STORAGE_KEY_NUTRITION = 'FITMITRA_NUTRITION_V3';
-const STORAGE_KEY_CALORIES_WEEK = 'FITMITRA_CALORIES_WEEK_V3';
-const STORAGE_KEY_WATER = 'FITMITRA_WATER_V3';
 
 const INITIAL_WEEKLY_CALORIES: DailyCalorieRecord[] = [
   { day: 'Mon', date: 'Sept 7', caloriesBurned: 280, caloriesGained: 1850, netBalance: 1570 },
@@ -79,32 +90,58 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Nutrition & Weekly Calorie Log
   const [loggedMeals, setLoggedMeals] = useState<LoggedMeal[]>(INITIAL_LOGGED_MEALS);
   const [weeklyCalorieHistory, setWeeklyCalorieHistory] = useState<DailyCalorieRecord[]>(INITIAL_WEEKLY_CALORIES);
+  const isHydratedRef = useRef(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Load progress from localStorage
+  // Load progress from localStorage with validation
   useEffect(() => {
     try {
       const savedWorkout = localStorage.getItem(STORAGE_KEY_WORKOUT);
       if (savedWorkout) {
         const parsed = JSON.parse(savedWorkout);
-        if (typeof parsed.xp === 'number') setXp(parsed.xp);
-        if (typeof parsed.streakDays === 'number') setStreakDays(parsed.streakDays);
-        if (typeof parsed.soundEnabled === 'boolean') setSoundEnabled(parsed.soundEnabled);
-        if (typeof parsed.voiceCoachEnabled === 'boolean') {
-          setVoiceCoachEnabled(parsed.voiceCoachEnabled);
-          coachVoice.setEnabled(parsed.voiceCoachEnabled);
+        if (typeof parsed === 'object' && parsed !== null) {
+          if (typeof parsed.xp === 'number') setXp(parsed.xp);
+          if (typeof parsed.streakDays === 'number') setStreakDays(parsed.streakDays);
+          if (typeof parsed.soundEnabled === 'boolean') setSoundEnabled(parsed.soundEnabled);
+          if (typeof parsed.voiceCoachEnabled === 'boolean') {
+            setVoiceCoachEnabled(parsed.voiceCoachEnabled);
+            coachVoice.setEnabled(parsed.voiceCoachEnabled);
+          }
         }
       }
 
       const savedMeals = localStorage.getItem(STORAGE_KEY_NUTRITION);
       if (savedMeals) {
-        setLoggedMeals(JSON.parse(savedMeals));
+        const parsedMeals = JSON.parse(savedMeals);
+        if (Array.isArray(parsedMeals)) {
+          const validMeals = parsedMeals.filter(
+            (m) =>
+              m &&
+              typeof m.id === 'string' &&
+              typeof m.name === 'string' &&
+              typeof m.calories === 'number' &&
+              typeof m.protein === 'number'
+          );
+          if (validMeals.length > 0 || parsedMeals.length === 0) {
+            setLoggedMeals(validMeals);
+          }
+        }
       }
 
       const savedWeekly = localStorage.getItem(STORAGE_KEY_CALORIES_WEEK);
       if (savedWeekly) {
-        setWeeklyCalorieHistory(JSON.parse(savedWeekly));
+        const parsedWeekly = JSON.parse(savedWeekly);
+        const validated = validateWeeklyCalorieRecords(parsedWeekly);
+        if (validated && validated.length > 0) {
+          setWeeklyCalorieHistory(validated);
+        }
       }
-    } catch {}
+    } catch {
+      // Safe fallback to INITIAL values on JSON parse errors
+    } finally {
+      isHydratedRef.current = true;
+      setIsHydrated(true);
+    }
   }, []);
 
   const caloriesGainedToday = loggedMeals.reduce((acc, m) => acc + m.calories, 0);
@@ -115,9 +152,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const baseTodayBurn = 120; // baseline from earlier sets
   const caloriesBurnedToday = baseTodayBurn + currentWorkoutCalBurn;
 
-  // Sync today's totals to the 7-day weekly history array
+  // Sync today's totals to the 7-day weekly history array only AFTER hydration completes
   useEffect(() => {
+    if (!isHydratedRef.current) return;
+
     setWeeklyCalorieHistory((prev) => {
+      if (!prev || prev.length === 0) return prev;
       const updated = [...prev];
       const todayIndex = updated.length - 1;
       if (todayIndex >= 0) {
@@ -134,7 +174,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } catch {}
       return updated;
     });
-  }, [caloriesBurnedToday, caloriesGainedToday]);
+  }, [caloriesBurnedToday, caloriesGainedToday, isHydrated]);
 
   const level = Math.floor(xp / 100) + 1;
 

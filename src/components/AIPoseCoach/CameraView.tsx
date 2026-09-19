@@ -24,6 +24,9 @@ import { FormFault, LandmarkPoint } from '@/types/fitness';
 
 type ViewportState = 'idle' | 'requesting' | 'active' | 'simulating' | 'error';
 
+import { FramePumpController } from './FramePumpController';
+export { FramePumpController };
+
 const SKELETON_CONNECTIONS = [
   // Torso
   [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.RIGHT_SHOULDER],
@@ -264,6 +267,7 @@ export const CameraView: React.FC = () => {
 
   // Start Live Webcam Stream with MediaPipe Hookup
   const startCamera = async () => {
+    stopCamera();
     repEngine.reset(selectedExerciseRef.current);
     prevLandmarksRef.current = null;
     setIsInFrame(false);
@@ -387,9 +391,18 @@ export const CameraView: React.FC = () => {
         ) {
           try {
             await poseRef.current.send({ image: videoRef.current });
-          } catch {}
+          } catch (poseSendErr) {
+            if (isRunningRef.current) {
+              console.warn('Pose processing frame skipped:', poseSendErr);
+            }
+          }
         }
-        animFrameRef.current = requestAnimationFrame(pumpFrame);
+        // Lifecycle guard: verify isRunningRef is STILL true after asynchronous pose processing
+        if (isRunningRef.current) {
+          animFrameRef.current = requestAnimationFrame(pumpFrame);
+        } else {
+          animFrameRef.current = null;
+        }
       };
 
       pumpFrame();

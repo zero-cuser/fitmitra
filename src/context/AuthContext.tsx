@@ -3,52 +3,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { FitnessGoal, Friend, UserProfile } from '@/types/fitness';
 
-export interface BodyMetricsInput {
-  age: number;
-  gender: 'male' | 'female' | 'other';
-  heightCm: number;
-  weightKg: number;
-  activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active';
-}
-
-export const calculateCalorieAndWaterNeeds = (
-  gender: 'male' | 'female' | 'other',
-  weightKg: number,
-  heightCm: number,
-  age: number,
-  activityLevel: 'sedentary' | 'light' | 'moderate' | 'very_active',
-  goalInput: FitnessGoal | FitnessGoal[]
-) => {
-  // Mifflin-St Jeor Equation
-  const s = gender === 'female' ? -161 : gender === 'male' ? 5 : -78;
-  const bmr = Math.round(10 * weightKg + 6.25 * heightCm - 5 * age + s);
-
-  const activityMultipliers: Record<string, number> = {
-    sedentary: 1.2,
-    light: 1.375,
-    moderate: 1.55,
-    very_active: 1.725
-  };
-  const mult = activityMultipliers[activityLevel] || 1.375;
-  const tdee = Math.round(bmr * mult);
-
-  const goalsArray = Array.isArray(goalInput) ? goalInput : [goalInput];
-  let calorieAdjustment = 0;
-
-  if (goalsArray.includes('fat_loss') || goalsArray.includes('toning')) {
-    calorieAdjustment -= 350;
-  }
-  if (goalsArray.includes('strength') || goalsArray.includes('athletic')) {
-    calorieAdjustment += 250;
-  }
-  if (goalsArray.includes('cardio')) {
-    calorieAdjustment += 150;
-  }
-
-  const targetCalories = Math.max(1350, tdee + calorieAdjustment);
-  const targetWaterMl = Math.round(weightKg * 35); // 35 ml per kg bodyweight
-
-  return { bmr, tdee, targetCalories, targetWaterMl };
+import {
+  BodyMetricsInput,
+  calculateCalorieAndWaterNeeds,
+  STORAGE_KEY_USER,
+  STORAGE_KEY_FRIENDS,
+  STORAGE_KEY_AUTH_STATUS,
+  validateUserProfile
+} from './authStorage';
+export type { BodyMetricsInput };
+export {
+  calculateCalorieAndWaterNeeds,
+  STORAGE_KEY_USER,
+  STORAGE_KEY_FRIENDS,
+  STORAGE_KEY_AUTH_STATUS,
+  validateUserProfile
 };
 
 interface AuthContextType {
@@ -75,8 +44,6 @@ interface AuthContextType {
   cheerFriend: (friendId: string) => void;
 }
 
-const STORAGE_KEY_USER = 'FITMITRA_AUTH_USER_V3';
-const STORAGE_KEY_FRIENDS = 'FITMITRA_FRIENDS_V3';
 
 const DEFAULT_USER: UserProfile = {
   id: 'usr_student_01',
@@ -183,22 +150,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Initialize from LocalStorage
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem(STORAGE_KEY_USER);
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
+      const authStatus = localStorage.getItem(STORAGE_KEY_AUTH_STATUS);
+
+      if (authStatus === 'logged_out') {
+        // Explicit logout was triggered: keep session unauthenticated across reloads
+        setUser(null);
       } else {
-        setUser(DEFAULT_USER);
-        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(DEFAULT_USER));
+        const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          const validUser = validateUserProfile(parsed);
+          if (validUser) {
+            setUser(validUser);
+          } else {
+            setUser(null);
+          }
+        } else if (!authStatus) {
+          // First visit: initialize demo user for seamless evaluation
+          setUser(DEFAULT_USER);
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(DEFAULT_USER));
+          localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'guest');
+        } else {
+          setUser(null);
+        }
       }
 
       const savedFriends = localStorage.getItem(STORAGE_KEY_FRIENDS);
       if (savedFriends) {
-        setFriends(JSON.parse(savedFriends));
+        const parsedFriends = JSON.parse(savedFriends);
+        if (Array.isArray(parsedFriends) && parsedFriends.length > 0) {
+          setFriends(parsedFriends);
+        }
       } else {
         localStorage.setItem(STORAGE_KEY_FRIENDS, JSON.stringify(INITIAL_CAMPUS_FRIENDS));
       }
     } catch {
-      setUser(DEFAULT_USER);
+      setUser(null);
     }
   }, []);
 
@@ -228,13 +215,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username: usernamePart,
       email,
       hostelWing: user?.hostelWing || 'Aryabhatta Wing A',
-      goal: user?.goal || 'posture',
+      goal: user?.goal || 'strength',
+      goals: user?.goals || ['strength'],
       joinedDate: 'Sept 2026',
       avatarColor: 'from-cyan-500 to-blue-700'
     };
 
     setUser(loggedUser);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(loggedUser));
+    try {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(loggedUser));
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'authenticated');
+    } catch {}
     setIsAuthModalOpen(false);
     return { success: true };
   };
@@ -308,19 +299,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setUser(newUser);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newUser));
+    try {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newUser));
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'authenticated');
+    } catch {}
     setIsAuthModalOpen(false);
     return { success: true };
   };
 
   const loginAsGuest = () => {
     setUser(DEFAULT_USER);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(DEFAULT_USER));
+    try {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(DEFAULT_USER));
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'guest');
+    } catch {}
     setIsAuthModalOpen(false);
   };
 
   const logout = () => {
-    localStorage.removeItem(STORAGE_KEY_USER);
+    try {
+      localStorage.removeItem(STORAGE_KEY_USER);
+      localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'logged_out');
+    } catch {}
     setUser(null);
   };
 

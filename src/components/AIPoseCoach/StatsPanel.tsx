@@ -3,6 +3,7 @@
 import React from 'react';
 import { useWorkout } from '@/context/WorkoutContext';
 import { EXERCISE_CATALOG } from '@/data/exercises';
+import { getPlankAlignmentMetrics } from './AngleMath';
 import { CheckCircle2, AlertTriangle, RotateCcw, Plus, Activity, Award } from 'lucide-react';
 
 export const StatsPanel: React.FC = () => {
@@ -22,6 +23,7 @@ export const StatsPanel: React.FC = () => {
   const config = EXERCISE_CATALOG[selectedExercise];
   const progressPercent = Math.min(Math.round((sessionReps / targetReps) * 100), 100);
   const estCalories = (sessionReps * config.calPerRep).toFixed(1);
+  const plankMetrics = getPlankAlignmentMetrics(liveAngle);
 
   return (
     <div className="flex flex-col space-y-4">
@@ -67,7 +69,7 @@ export const StatsPanel: React.FC = () => {
           {/* Real-Time Joint Angle */}
           <div className="bg-slate-950/70 border border-slate-800/80 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
             <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">
-              Live Joint Angle
+              {config.isHoldExercise ? 'Alignment Angle' : 'Live Joint Angle'}
             </span>
             <div className="flex items-baseline space-x-0.5">
               <span className="text-4xl sm:text-5xl font-black text-emerald-400 tracking-tight">
@@ -75,9 +77,23 @@ export const StatsPanel: React.FC = () => {
               </span>
             </div>
             <div className="flex items-center space-x-1 mt-1">
-              <span className={`w-2 h-2 rounded-full ${currentStage === 'down' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  config.isHoldExercise
+                    ? plankMetrics.isGoodAlignment
+                      ? 'bg-emerald-400'
+                      : 'bg-rose-400 animate-pulse'
+                    : currentStage === 'down'
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-emerald-400'
+                }`}
+              />
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                {config.isHoldExercise ? (liveAngle < 15 ? 'Good Alignment' : 'Off Axis') : `Stage: ${currentStage}`}
+                {config.isHoldExercise
+                  ? plankMetrics.isGoodAlignment
+                    ? 'Good Alignment'
+                    : `Off Axis (±${plankMetrics.deviation}°)`
+                  : `Stage: ${currentStage}`}
               </span>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { ExerciseKey, FormFault, LandmarkPoint, TelemetryResult } from '@/types/fitness';
+import type { ExerciseKey, FormFault, LandmarkPoint, TelemetryResult } from '../../types/fitness';
 
 export const LANDMARK_INDEX = {
   NOSE: 0,
@@ -483,6 +483,30 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
     formFaults,
     isGoodForm: isHorizontalProne,
     formCue
+  };
+};
+
+export interface PlankAlignmentMetrics {
+  rawAngle: number;
+  deviation: number;
+  isGoodAlignment: boolean;
+}
+
+/**
+ * Calculates plank alignment metrics by measuring angular deviation from a 180° straight line.
+ * @param rawAngle Joint angle in degrees [0, 180], where 180° represents a collinear line.
+ * @param maxDeviationThreshold Maximum allowed deviation from 180° (default 15° matching form checklist).
+ */
+export const getPlankAlignmentMetrics = (
+  rawAngle: number,
+  maxDeviationThreshold = 15
+): PlankAlignmentMetrics => {
+  // Normalize angle to deviation from a straight line (180°)
+  const deviation = Math.abs(180 - rawAngle);
+  return {
+    rawAngle,
+    deviation,
+    isGoodAlignment: deviation <= maxDeviationThreshold
   };
 };
 
