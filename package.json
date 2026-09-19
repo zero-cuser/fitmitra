@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test": "node --test --experimental-strip-types tests/**/*.test.ts"
+    "test": "node --test --experimental-strip-types tests/**/*.test.ts",
+    "test:ci": "node --test --test-reporter=spec --experimental-strip-types tests/**/*.test.ts",
+    "test:coverage": "node --test --experimental-test-coverage --experimental-strip-types tests/**/*.test.ts"
   },
   "dependencies": {
     "@mediapipe/camera_utils": "^0.3.1675466862",
