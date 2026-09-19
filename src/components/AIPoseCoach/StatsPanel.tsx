@@ -23,7 +23,8 @@ export const StatsPanel: React.FC = () => {
   const config = EXERCISE_CATALOG[selectedExercise];
   const progressPercent = Math.min(Math.round((sessionReps / targetReps) * 100), 100);
   const estCalories = (sessionReps * config.calPerRep).toFixed(1);
-  const plankMetrics = getPlankAlignmentMetrics(liveAngle);
+  const plankDeviationThreshold = config.formThresholds?.maxDeviation ?? 15;
+  const plankMetrics = getPlankAlignmentMetrics(liveAngle, plankDeviationThreshold);
 
   return (
     <div className="flex flex-col space-y-4">

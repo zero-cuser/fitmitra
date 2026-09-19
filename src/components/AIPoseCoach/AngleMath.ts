@@ -1,4 +1,7 @@
-import type { ExerciseKey, FormFault, LandmarkPoint, TelemetryResult } from '../../types/fitness';
+import type { ExerciseConfig, ExerciseKey, FormFault, LandmarkPoint, TelemetryResult } from '../../types/fitness';
+import { EXERCISE_CATALOG, resolveExerciseConfig, validateExerciseConfig } from '../../data/exercises.ts';
+
+export { EXERCISE_CATALOG, resolveExerciseConfig, validateExerciseConfig };
 
 export const LANDMARK_INDEX = {
   NOSE: 0,
@@ -90,14 +93,14 @@ export const smoothLandmarksEMA = (
 };
 
 /**
- * Friendly Visibility Gate:
- * Verifies that user joints are detected in frame (confidence > 0.45).
- * Allows smooth, forgiving tracking in normal room lighting.
+ * Visibility Gate:
+ * Verifies that key user joints are detected in frame above minConfidence.
  */
 export const checkLandmarksInFrame = (
   landmarks: LandmarkPoint[],
   indices: number[],
-  minConfidence = 0.20
+  minConfidence = 0.20,
+  minVisibleCount = 2
 ): boolean => {
   if (!landmarks || landmarks.length < 33) return false;
   let visibleCount = 0;
@@ -107,7 +110,7 @@ export const checkLandmarksInFrame = (
       visibleCount++;
     }
   }
-  return visibleCount >= Math.min(2, indices.length);
+  return visibleCount >= Math.min(minVisibleCount, indices.length);
 };
 
 export interface ExerciseTrackerState {
@@ -119,21 +122,24 @@ export interface ExerciseTrackerState {
   lastRepTime: number;
 }
 
-// 1. FORGIVING SQUAT KINEMATICS - Detects all squat movements from either side
+// 1. SQUAT KINEMATICS - Decreasing flexion
 export const evaluateSquatLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
-  tracker?: ExerciseTrackerState
+  tracker?: ExerciseTrackerState,
+  config: ExerciseConfig = EXERCISE_CATALOG.squats
 ): TelemetryResult => {
-  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], 0.20);
-  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], 0.20);
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], minConf, minJoints);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], minConf, minJoints);
 
   const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.bottomReached = false;
     return {
       inFrame: false,
-      angle: 160,
+      angle: config.repThresholds.upThreshold,
       stage: currentStage,
       repCompleted: false,
       formFaults: [],
@@ -153,37 +159,42 @@ export const evaluateSquatLandmarks = (
   const shoulder = landmarks[isLeft ? LANDMARK_INDEX.LEFT_SHOULDER : LANDMARK_INDEX.RIGHT_SHOULDER];
 
   // If ankle is cropped out of bottom of camera, extrapolate straight down from knee
-  if (!ankle || (ankle.visibility ?? 0) < 0.20) {
+  if (!ankle || (ankle.visibility ?? 0) < minConf) {
     ankle = { x: knee.x, y: Math.min(1.0, knee.y + 0.35), visibility: 0.5 };
   }
 
-  const kneeAngle = calculateAngle(hip, knee, ankle) || 160;
-  const torsoAngle = calculateAngle(shoulder, hip, knee) || 160;
+  const kneeAngle = calculateAngle(hip, knee, ankle) || config.repThresholds.upThreshold;
+  const torsoAngle = calculateAngle(shoulder, hip, knee) || config.repThresholds.upThreshold;
 
   const formFaults: FormFault[] = [];
 
-  // Gentle guidance cues (do NOT block reps)
-  if (kneeAngle > 135 && currentStage === 'down') {
+  const earlyCue = config.formThresholds?.earlyCueAngle ?? 135;
+  const minTorso = config.formThresholds?.minTorsoAngle ?? 55;
+
+  if (kneeAngle > earlyCue && currentStage === 'down') {
     formFaults.push({ joint: 'knee', x: knee.x, y: knee.y, message: 'Bend knees lower' });
   }
-  if (torsoAngle < 55) {
+  if (torsoAngle < minTorso) {
     formFaults.push({ joint: 'hip', x: hip.x, y: hip.y, message: 'Chest up' });
   }
 
-  // Accessible State Machine: Down (<125°) -> Up (>145°)
+  const downThreshold = config.repThresholds.downThreshold;
+  const upThreshold = config.repThresholds.upThreshold;
+  const cooldownMs = config.repThresholds.repCooldownMs ?? 600;
+
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  if (kneeAngle < 125) {
+  if (kneeAngle <= downThreshold) {
     newStage = 'down';
     if (tracker) tracker.bottomReached = true;
     formCue = 'Good depth, now stand up!';
-  } else if (kneeAngle > 145) {
+  } else if (kneeAngle >= upThreshold) {
     newStage = 'up';
     const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 600 : true;
+    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
     if (hadBottom && cooldownOk) {
       repCompleted = true;
@@ -206,22 +217,24 @@ export const evaluateSquatLandmarks = (
   };
 };
 
-// 2. FORGIVING PUSH-UP KINEMATICS
-// Accessible thresholds: Down (<125° elbow flexion), Up (>145°). Lenient prone orientation (supports incline/knees).
+// 2. PUSH-UP KINEMATICS - Decreasing flexion
 export const evaluatePushupLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
-  tracker?: ExerciseTrackerState
+  tracker?: ExerciseTrackerState,
+  config: ExerciseConfig = EXERCISE_CATALOG.pushups
 ): TelemetryResult => {
-  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_ELBOW], 0.20);
-  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_ELBOW], 0.20);
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_ELBOW], minConf, minJoints);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_ELBOW], minConf, minJoints);
 
   const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.bottomReached = false;
     return {
       inFrame: false,
-      angle: 160,
+      angle: config.repThresholds.upThreshold,
       stage: currentStage,
       repCompleted: false,
       formFaults: [],
@@ -238,22 +251,25 @@ export const evaluatePushupLandmarks = (
   const elbow = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ELBOW : LANDMARK_INDEX.RIGHT_ELBOW];
   const wrist = landmarks[isLeft ? LANDMARK_INDEX.LEFT_WRIST : LANDMARK_INDEX.RIGHT_WRIST];
 
-  const elbowAngle = calculateAngle(shoulder, elbow, wrist) || 160;
+  const elbowAngle = calculateAngle(shoulder, elbow, wrist) || config.repThresholds.upThreshold;
 
-  // Accessible State Machine: Down (<125°) -> Up (>145°)
+  const downThreshold = config.repThresholds.downThreshold;
+  const upThreshold = config.repThresholds.upThreshold;
+  const cooldownMs = config.repThresholds.repCooldownMs ?? 600;
+
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  if (elbowAngle < 125) {
+  if (elbowAngle <= downThreshold) {
     newStage = 'down';
     if (tracker) tracker.bottomReached = true;
     formCue = 'Good press, now push up!';
-  } else if (elbowAngle > 145) {
+  } else if (elbowAngle >= upThreshold) {
     newStage = 'up';
     const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 600 : true;
+    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
     if (hadBottom && cooldownOk) {
       repCompleted = true;
@@ -276,21 +292,24 @@ export const evaluatePushupLandmarks = (
   };
 };
 
-// 3. FORGIVING JUMPING JACKS KINEMATICS - Detects arm abduction from either side
+// 3. JUMPING JACKS KINEMATICS - Increasing abduction
 export const evaluateJumpingJackLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
-  tracker?: ExerciseTrackerState
+  tracker?: ExerciseTrackerState,
+  config: ExerciseConfig = EXERCISE_CATALOG.jumpingJacks
 ): TelemetryResult => {
-  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], 0.20);
-  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], 0.20);
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], minConf, minJoints);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], minConf, minJoints);
 
   const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.openReached = false;
     return {
       inFrame: false,
-      angle: 45,
+      angle: config.repThresholds.downThreshold,
       stage: currentStage,
       repCompleted: false,
       formFaults: [],
@@ -299,25 +318,29 @@ export const evaluateJumpingJackLandmarks = (
     };
   }
 
-  const leftAngle = calculateAngle(landmarks[LANDMARK_INDEX.LEFT_HIP], landmarks[LANDMARK_INDEX.LEFT_SHOULDER], landmarks[LANDMARK_INDEX.LEFT_WRIST]) || 45;
-  const rightAngle = calculateAngle(landmarks[LANDMARK_INDEX.RIGHT_HIP], landmarks[LANDMARK_INDEX.RIGHT_SHOULDER], landmarks[LANDMARK_INDEX.RIGHT_WRIST]) || 45;
+  const leftAngle = calculateAngle(landmarks[LANDMARK_INDEX.LEFT_HIP], landmarks[LANDMARK_INDEX.LEFT_SHOULDER], landmarks[LANDMARK_INDEX.LEFT_WRIST]) || config.repThresholds.downThreshold;
+  const rightAngle = calculateAngle(landmarks[LANDMARK_INDEX.RIGHT_HIP], landmarks[LANDMARK_INDEX.RIGHT_SHOULDER], landmarks[LANDMARK_INDEX.RIGHT_WRIST]) || config.repThresholds.downThreshold;
   const armAngle = Math.max(leftAngle, rightAngle);
+
+  const upThreshold = config.repThresholds.upThreshold; // Open / wide V threshold
+  const downThreshold = config.repThresholds.downThreshold; // Closed / returned threshold
+  const cooldownMs = config.repThresholds.repCooldownMs ?? 500;
 
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  // Open: Arms raised out (>95°)
-  if (armAngle > 95) {
+  // Open: Arms raised out past upThreshold
+  if (armAngle >= upThreshold) {
     newStage = 'up';
     if (tracker) tracker.openReached = true;
     formCue = 'Arms out wide!';
-  } else if (armAngle < 70) {
-    // Closed: Arms returned to sides (<70°)
+  } else if (armAngle <= downThreshold) {
+    // Closed: Arms returned to sides below downThreshold
     newStage = 'down';
     const hadOpen = tracker ? tracker.openReached : currentStage === 'up';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 500 : true;
+    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
     if (hadOpen && cooldownOk) {
       repCompleted = true;
@@ -340,21 +363,24 @@ export const evaluateJumpingJackLandmarks = (
   };
 };
 
-// 4. FORGIVING LUNGE KINEMATICS - Detects front/back knee flexion from either side
+// 4. LUNGE KINEMATICS - Decreasing flexion
 export const evaluateLungeLandmarks = (
   landmarks: LandmarkPoint[],
   currentStage: 'up' | 'down',
-  tracker?: ExerciseTrackerState
+  tracker?: ExerciseTrackerState,
+  config: ExerciseConfig = EXERCISE_CATALOG.lunges
 ): TelemetryResult => {
-  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], 0.20);
-  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], 0.20);
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], minConf, minJoints);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], minConf, minJoints);
 
   const inFrame = leftIn || rightIn;
   if (!inFrame) {
     if (tracker) tracker.bottomReached = false;
     return {
       inFrame: false,
-      angle: 160,
+      angle: config.repThresholds.upThreshold,
       stage: currentStage,
       repCompleted: false,
       formFaults: [],
@@ -367,28 +393,32 @@ export const evaluateLungeLandmarks = (
     landmarks[LANDMARK_INDEX.LEFT_HIP],
     landmarks[LANDMARK_INDEX.LEFT_KNEE],
     landmarks[LANDMARK_INDEX.LEFT_ANKLE]
-  ) || 160;
+  ) || config.repThresholds.upThreshold;
   const rightKneeAngle = calculateAngle(
     landmarks[LANDMARK_INDEX.RIGHT_HIP],
     landmarks[LANDMARK_INDEX.RIGHT_KNEE],
     landmarks[LANDMARK_INDEX.RIGHT_ANKLE]
-  ) || 160;
+  ) || config.repThresholds.upThreshold;
 
   const activeKneeAngle = Math.min(leftKneeAngle, rightKneeAngle);
+
+  const downThreshold = config.repThresholds.downThreshold;
+  const upThreshold = config.repThresholds.upThreshold;
+  const cooldownMs = config.repThresholds.repCooldownMs ?? 600;
 
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  if (activeKneeAngle < 125) {
+  if (activeKneeAngle <= downThreshold) {
     newStage = 'down';
     if (tracker) tracker.bottomReached = true;
     formCue = 'Good lunge step, now rise!';
-  } else if (activeKneeAngle > 145) {
+  } else if (activeKneeAngle >= upThreshold) {
     newStage = 'up';
     const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > 600 : true;
+    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
     if (hadBottom && cooldownOk) {
       repCompleted = true;
@@ -411,16 +441,21 @@ export const evaluateLungeLandmarks = (
   };
 };
 
-// 5. FORGIVING PLANK STATIC HOLD ENGINE - Detects straight horizontal alignment from either side
-export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryResult => {
-  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], 0.20);
-  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], 0.20);
+// 5. PLANK STATIC HOLD ENGINE - Isometric hold
+export const evaluatePlankLandmarks = (
+  landmarks: LandmarkPoint[],
+  config: ExerciseConfig = EXERCISE_CATALOG.plank
+): TelemetryResult => {
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], minConf, minJoints);
+  const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], minConf, minJoints);
 
   const inFrame = leftIn || rightIn;
   if (!inFrame) {
     return {
       inFrame: false,
-      angle: 180,
+      angle: config.formThresholds?.targetAngle ?? 180,
       stage: 'down',
       repCompleted: false,
       formFaults: [],
@@ -436,10 +471,11 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
 
   const straightLineAngle = calculateAngle(shoulder, hip, ankle) || 180;
 
-  // Lenient horizontal prone orientation (supports forearms, hands, knees)
+  const minHoriz = config.formThresholds?.minHorizontalSpan ?? 0.18;
+  const maxVert = config.formThresholds?.maxVerticalDelta ?? 0.40;
   const vertDelta = Math.abs(shoulder.y - ankle.y);
   const horizDelta = Math.abs(shoulder.x - ankle.x);
-  const isHorizontalProne = horizDelta > 0.18 || vertDelta < 0.40;
+  const isHorizontalProne = horizDelta > minHoriz || vertDelta < maxVert;
 
   if (!isHorizontalProne) {
     return {
@@ -461,18 +497,20 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
   }
 
   const formFaults: FormFault[] = [];
-  let isGoodForm = true;
-  let formCue = 'Plank holding strong!';
+  const targetAngle = config.formThresholds?.targetAngle ?? 180;
+  const maxDeviation = config.formThresholds?.maxDeviation ?? 15;
+  const deviation = Math.abs(targetAngle - straightLineAngle);
+  const isAligned = deviation <= maxDeviation;
 
-  // Wide forgiving range: 135° to 205°
-  if (straightLineAngle < 135 || straightLineAngle > 205) {
+  let formCue = 'Plank holding strong!';
+  if (!isAligned) {
     formFaults.push({
       joint: 'hip',
       x: hip.x,
       y: hip.y,
       message: 'Keep body straight'
     });
-    // Gentle warning without breaking the hold
+    formCue = 'Align hips with shoulders and heels';
   }
 
   return {
@@ -481,7 +519,7 @@ export const evaluatePlankLandmarks = (landmarks: LandmarkPoint[]): TelemetryRes
     stage: 'down',
     repCompleted: false,
     formFaults,
-    isGoodForm: isHorizontalProne,
+    isGoodForm: isHorizontalProne && isAligned,
     formCue
   };
 };
@@ -493,15 +531,12 @@ export interface PlankAlignmentMetrics {
 }
 
 /**
- * Calculates plank alignment metrics by measuring angular deviation from a 180° straight line.
- * @param rawAngle Joint angle in degrees [0, 180], where 180° represents a collinear line.
- * @param maxDeviationThreshold Maximum allowed deviation from 180° (default 15° matching form checklist).
+ * Calculates plank alignment metrics by measuring angular deviation from 180°.
  */
 export const getPlankAlignmentMetrics = (
   rawAngle: number,
-  maxDeviationThreshold = 15
+  maxDeviationThreshold: number = EXERCISE_CATALOG.plank.formThresholds?.maxDeviation ?? 15
 ): PlankAlignmentMetrics => {
-  // Normalize angle to deviation from a straight line (180°)
   const deviation = Math.abs(180 - rawAngle);
   return {
     rawAngle,
@@ -512,11 +547,12 @@ export const getPlankAlignmentMetrics = (
 
 /**
  * Stateful Biomechanical Kinematic Engine
- * Smooth, forgiving, and responsive.
+ * Driven dynamically by EXERCISE_CATALOG.
  */
 export class ExerciseRepEngine {
   private currentExercise: ExerciseKey = 'squats';
   private stage: 'up' | 'down' = 'up';
+  private catalog: Record<ExerciseKey, ExerciseConfig>;
   private tracker: ExerciseTrackerState = {
     standingConfirmed: false,
     lockoutConfirmed: false,
@@ -526,9 +562,22 @@ export class ExerciseRepEngine {
     lastRepTime: 0
   };
 
+  constructor(catalog: Record<ExerciseKey, ExerciseConfig> = EXERCISE_CATALOG) {
+    this.catalog = { ...catalog };
+  }
+
+  setExerciseConfig(exerciseKey: ExerciseKey, config: Partial<ExerciseConfig>) {
+    this.catalog[exerciseKey] = resolveExerciseConfig({ ...config, id: exerciseKey });
+  }
+
+  getExerciseConfig(exerciseKey: ExerciseKey): ExerciseConfig {
+    return this.catalog[exerciseKey];
+  }
+
   reset(exercise?: ExerciseKey) {
     if (exercise) this.currentExercise = exercise;
-    this.stage = this.currentExercise === 'plank' || this.currentExercise === 'jumpingJacks' ? 'down' : 'up';
+    const config = this.catalog[this.currentExercise] || EXERCISE_CATALOG[this.currentExercise];
+    this.stage = config.direction === 'increasing_abduction' || config.direction === 'isometric_hold' ? 'down' : 'up';
     this.tracker = {
       standingConfirmed: false,
       lockoutConfirmed: false,
@@ -539,31 +588,39 @@ export class ExerciseRepEngine {
     };
   }
 
-  evaluate(exerciseKey: ExerciseKey, landmarks: LandmarkPoint[]): TelemetryResult {
+  evaluate(
+    exerciseKey: ExerciseKey,
+    landmarks: LandmarkPoint[],
+    customConfig?: Partial<ExerciseConfig>
+  ): TelemetryResult {
     if (exerciseKey !== this.currentExercise) {
       this.reset(exerciseKey);
     }
+
+    const config = customConfig
+      ? resolveExerciseConfig({ ...customConfig, id: exerciseKey })
+      : this.catalog[exerciseKey];
 
     let result: TelemetryResult;
 
     switch (exerciseKey) {
       case 'squats':
-        result = evaluateSquatLandmarks(landmarks, this.stage, this.tracker);
+        result = evaluateSquatLandmarks(landmarks, this.stage, this.tracker, config);
         break;
       case 'pushups':
-        result = evaluatePushupLandmarks(landmarks, this.stage, this.tracker);
+        result = evaluatePushupLandmarks(landmarks, this.stage, this.tracker, config);
         break;
       case 'jumpingJacks':
-        result = evaluateJumpingJackLandmarks(landmarks, this.stage, this.tracker);
+        result = evaluateJumpingJackLandmarks(landmarks, this.stage, this.tracker, config);
         break;
       case 'lunges':
-        result = evaluateLungeLandmarks(landmarks, this.stage, this.tracker);
+        result = evaluateLungeLandmarks(landmarks, this.stage, this.tracker, config);
         break;
       case 'plank':
-        result = evaluatePlankLandmarks(landmarks);
+        result = evaluatePlankLandmarks(landmarks, config);
         break;
       default:
-        result = evaluateSquatLandmarks(landmarks, this.stage, this.tracker);
+        result = evaluateSquatLandmarks(landmarks, this.stage, this.tracker, config);
     }
 
     this.stage = result.stage;

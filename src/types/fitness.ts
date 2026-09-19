@@ -10,6 +10,44 @@ export type FitnessGoal =
   | 'posture'
   | 'mobility';
 
+export type MovementDirection =
+  | 'decreasing_flexion' // High angle start/lockout -> low angle flexion depth -> high angle lockout (squats, pushups, lunges)
+  | 'increasing_abduction' // Low angle start/closed -> high angle overhead abduction -> low angle closed (jumping jacks)
+  | 'isometric_hold'; // Continuous hold targeting straight collinear alignment (plank)
+
+export interface RepTransitionThresholds {
+  /** The angle to confirm start / return / lockout position */
+  upThreshold: number;
+  /** The angle to confirm depth / inflection / bottom position */
+  downThreshold: number;
+  /** Optional minimum hold time (ms) required at inflection */
+  minHoldMs?: number;
+  /** Cooldown time (ms) after rep completion to prevent bounce/jitter */
+  repCooldownMs?: number;
+}
+
+export interface FormAlignmentThresholds {
+  /** Target ideal angle for hold exercises (e.g., 180° for straight plank) */
+  targetAngle?: number;
+  /** Maximum allowable deviation in degrees (e.g., 15° for plank) */
+  maxDeviation?: number;
+  /** Warning threshold for torso angle (e.g., chest drop < 55° in squats) */
+  minTorsoAngle?: number;
+  /** Guidance knee flexion angle when descending (e.g., 135°) */
+  earlyCueAngle?: number;
+  /** Minimum horizontal coordinate span between joints for prone orientation */
+  minHorizontalSpan?: number;
+  /** Maximum vertical delta between shoulder and ankle for prone orientation */
+  maxVerticalDelta?: number;
+}
+
+export interface ConfidenceThresholds {
+  /** Minimum confidence score for a landmark to be considered in-frame */
+  minJointConfidence: number;
+  /** Minimum count of required visible landmarks for the exercise */
+  minVisibleJoints: number;
+}
+
 export interface ExerciseConfig {
   id: ExerciseKey;
   name: string;
@@ -22,7 +60,17 @@ export interface ExerciseConfig {
   isHoldExercise: boolean;
   instructions: string[];
   formChecklist: string[];
+  /** Direction of kinematic movement */
+  direction: MovementDirection;
+  /** Structured rep transition thresholds */
+  repThresholds: RepTransitionThresholds;
+  /** Alignment and posture thresholds */
+  formThresholds?: FormAlignmentThresholds;
+  /** Camera and joint confidence thresholds */
+  confidenceThresholds?: ConfidenceThresholds;
+  /** Top-level up threshold (matches repThresholds.upThreshold for compatibility) */
   upThreshold: number;
+  /** Top-level down threshold (matches repThresholds.downThreshold for compatibility) */
   downThreshold: number;
 }
 
