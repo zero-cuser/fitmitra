@@ -27,7 +27,7 @@ export default function RootLayout({
         <script defer src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossOrigin="anonymous"></script>
         <script defer src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossOrigin="anonymous"></script>
       </head>
-      <body className="bg-[#070b14] text-slate-100 min-h-screen antialiased selection:bg-emerald-500 selection:text-black">
+      <body className="bg-background text-text-primary min-h-screen antialiased selection:bg-primary selection:text-white">
         <AuthProvider>
           <WorkoutProvider>
             {children}
