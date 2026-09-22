@@ -92,6 +92,22 @@ export const smoothLandmarksEMA = (
   });
 };
 
+export const DEFAULT_MIN_JOINT_CONFIDENCE = 0.25;
+export const DEFAULT_MIN_REP_CONFIDENCE = 0.30;
+export const DEFAULT_MIN_FORM_CONFIDENCE = 0.35;
+
+/**
+ * Checks whether an angle's defining landmarks have sufficient confidence
+ * to be eligible for rep state transitions.
+ */
+export const isAngleEligibleForReps = (
+  points: (LandmarkPoint | undefined | null)[],
+  minConfidence = DEFAULT_MIN_REP_CONFIDENCE
+): boolean => {
+  if (!points || points.length < 3) return false;
+  return points.every((pt) => pt && (pt.visibility === undefined || pt.visibility >= minConfidence));
+};
+
 /**
  * Visibility Gate:
  * Verifies that key user joints are detected in frame above minConfidence.
@@ -129,8 +145,11 @@ export const evaluateSquatLandmarks = (
   tracker?: ExerciseTrackerState,
   config: ExerciseConfig = EXERCISE_CATALOG.squats
 ): TelemetryResult => {
-  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? DEFAULT_MIN_JOINT_CONFIDENCE;
   const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const minRepConf = config.confidenceThresholds?.minRepConfidence ?? DEFAULT_MIN_REP_CONFIDENCE;
+  const minFormConf = config.confidenceThresholds?.minFormGuardConfidence ?? DEFAULT_MIN_FORM_CONFIDENCE;
+
   const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], minConf, minJoints);
   const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], minConf, minJoints);
 
@@ -174,7 +193,10 @@ export const evaluateSquatLandmarks = (
   if (kneeAngle > earlyCue && currentStage === 'down') {
     formFaults.push({ joint: 'knee', x: knee.x, y: knee.y, message: 'Bend knees lower' });
   }
-  if (torsoAngle < minTorso) {
+
+  // Guard torso feedback: only issue cue if shoulder landmark has sufficient confidence
+  const shoulderConfident = shoulder && (shoulder.visibility === undefined || shoulder.visibility >= minFormConf);
+  if (shoulderConfident && torsoAngle < minTorso) {
     formFaults.push({ joint: 'hip', x: hip.x, y: hip.y, message: 'Chest up' });
   }
 
@@ -182,27 +204,32 @@ export const evaluateSquatLandmarks = (
   const upThreshold = config.repThresholds.upThreshold;
   const cooldownMs = config.repThresholds.repCooldownMs ?? 600;
 
+  // Rep counting eligibility check: active knee angle must have valid joint confidence
+  const repEligible = isAngleEligibleForReps([hip, knee, ankle], minRepConf);
+
   let newStage = currentStage;
   let repCompleted = false;
   let formCue: string | null = null;
   const now = Date.now();
 
-  if (kneeAngle <= downThreshold) {
-    newStage = 'down';
-    if (tracker) tracker.bottomReached = true;
-    formCue = 'Good depth, now stand up!';
-  } else if (kneeAngle >= upThreshold) {
-    newStage = 'up';
-    const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
+  if (repEligible) {
+    if (kneeAngle <= downThreshold) {
+      newStage = 'down';
+      if (tracker) tracker.bottomReached = true;
+      formCue = 'Good depth, now stand up!';
+    } else if (kneeAngle >= upThreshold) {
+      newStage = 'up';
+      const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
+      const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
-    if (hadBottom && cooldownOk) {
-      repCompleted = true;
-      if (tracker) {
-        tracker.bottomReached = false;
-        tracker.lastRepTime = now;
+      if (hadBottom && cooldownOk) {
+        repCompleted = true;
+        if (tracker) {
+          tracker.bottomReached = false;
+          tracker.lastRepTime = now;
+        }
+        formCue = 'Squat counted! Great job!';
       }
-      formCue = 'Squat counted! Great job!';
     }
   }
 
@@ -224,8 +251,10 @@ export const evaluatePushupLandmarks = (
   tracker?: ExerciseTrackerState,
   config: ExerciseConfig = EXERCISE_CATALOG.pushups
 ): TelemetryResult => {
-  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? DEFAULT_MIN_JOINT_CONFIDENCE;
   const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const minRepConf = config.confidenceThresholds?.minRepConfidence ?? DEFAULT_MIN_REP_CONFIDENCE;
+
   const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_ELBOW], minConf, minJoints);
   const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_ELBOW], minConf, minJoints);
 
@@ -243,8 +272,8 @@ export const evaluatePushupLandmarks = (
     };
   }
 
-  const leftVis = (landmarks[LANDMARK_INDEX.LEFT_ELBOW]?.visibility ?? 0.8);
-  const rightVis = (landmarks[LANDMARK_INDEX.RIGHT_ELBOW]?.visibility ?? 0.8);
+  const leftVis = (landmarks[LANDMARK_INDEX.LEFT_ELBOW]?.visibility ?? 0.8) + (landmarks[LANDMARK_INDEX.LEFT_SHOULDER]?.visibility ?? 0.8);
+  const rightVis = (landmarks[LANDMARK_INDEX.RIGHT_ELBOW]?.visibility ?? 0.8) + (landmarks[LANDMARK_INDEX.RIGHT_SHOULDER]?.visibility ?? 0.8);
   const isLeft = leftVis >= rightVis;
 
   const shoulder = landmarks[isLeft ? LANDMARK_INDEX.LEFT_SHOULDER : LANDMARK_INDEX.RIGHT_SHOULDER];
@@ -252,6 +281,9 @@ export const evaluatePushupLandmarks = (
   const wrist = landmarks[isLeft ? LANDMARK_INDEX.LEFT_WRIST : LANDMARK_INDEX.RIGHT_WRIST];
 
   const elbowAngle = calculateAngle(shoulder, elbow, wrist) || config.repThresholds.upThreshold;
+
+  // Rep counting eligibility check: shoulder, elbow, and wrist must be sufficiently visible
+  const repEligible = isAngleEligibleForReps([shoulder, elbow, wrist], minRepConf);
 
   const downThreshold = config.repThresholds.downThreshold;
   const upThreshold = config.repThresholds.upThreshold;
@@ -262,22 +294,24 @@ export const evaluatePushupLandmarks = (
   let formCue: string | null = null;
   const now = Date.now();
 
-  if (elbowAngle <= downThreshold) {
-    newStage = 'down';
-    if (tracker) tracker.bottomReached = true;
-    formCue = 'Good press, now push up!';
-  } else if (elbowAngle >= upThreshold) {
-    newStage = 'up';
-    const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
+  if (repEligible) {
+    if (elbowAngle <= downThreshold) {
+      newStage = 'down';
+      if (tracker) tracker.bottomReached = true;
+      formCue = 'Good press, now push up!';
+    } else if (elbowAngle >= upThreshold) {
+      newStage = 'up';
+      const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
+      const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
-    if (hadBottom && cooldownOk) {
-      repCompleted = true;
-      if (tracker) {
-        tracker.bottomReached = false;
-        tracker.lastRepTime = now;
+      if (hadBottom && cooldownOk) {
+        repCompleted = true;
+        if (tracker) {
+          tracker.bottomReached = false;
+          tracker.lastRepTime = now;
+        }
+        formCue = 'Push-up counted! Strong!';
       }
-      formCue = 'Push-up counted! Strong!';
     }
   }
 
@@ -299,8 +333,10 @@ export const evaluateJumpingJackLandmarks = (
   tracker?: ExerciseTrackerState,
   config: ExerciseConfig = EXERCISE_CATALOG.jumpingJacks
 ): TelemetryResult => {
-  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? DEFAULT_MIN_JOINT_CONFIDENCE;
   const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const minRepConf = config.confidenceThresholds?.minRepConfidence ?? DEFAULT_MIN_REP_CONFIDENCE;
+
   const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], minConf, minJoints);
   const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], minConf, minJoints);
 
@@ -320,7 +356,18 @@ export const evaluateJumpingJackLandmarks = (
 
   const leftAngle = calculateAngle(landmarks[LANDMARK_INDEX.LEFT_HIP], landmarks[LANDMARK_INDEX.LEFT_SHOULDER], landmarks[LANDMARK_INDEX.LEFT_WRIST]) || config.repThresholds.downThreshold;
   const rightAngle = calculateAngle(landmarks[LANDMARK_INDEX.RIGHT_HIP], landmarks[LANDMARK_INDEX.RIGHT_SHOULDER], landmarks[LANDMARK_INDEX.RIGHT_WRIST]) || config.repThresholds.downThreshold;
-  const armAngle = Math.max(leftAngle, rightAngle);
+
+  const isLeft = leftAngle >= rightAngle;
+  const armAngle = isLeft ? leftAngle : rightAngle;
+
+  // Determine if active arm meets minRepConfidence for rep counting
+  const repEligible = isLeft
+    ? (landmarks[LANDMARK_INDEX.LEFT_HIP]?.visibility ?? 1) >= minRepConf &&
+      (landmarks[LANDMARK_INDEX.LEFT_SHOULDER]?.visibility ?? 1) >= minRepConf &&
+      (landmarks[LANDMARK_INDEX.LEFT_WRIST]?.visibility ?? 1) >= minRepConf
+    : (landmarks[LANDMARK_INDEX.RIGHT_HIP]?.visibility ?? 1) >= minRepConf &&
+      (landmarks[LANDMARK_INDEX.RIGHT_SHOULDER]?.visibility ?? 1) >= minRepConf &&
+      (landmarks[LANDMARK_INDEX.RIGHT_WRIST]?.visibility ?? 1) >= minRepConf;
 
   const upThreshold = config.repThresholds.upThreshold; // Open / wide V threshold
   const downThreshold = config.repThresholds.downThreshold; // Closed / returned threshold
@@ -331,24 +378,26 @@ export const evaluateJumpingJackLandmarks = (
   let formCue: string | null = null;
   const now = Date.now();
 
-  // Open: Arms raised out past upThreshold
-  if (armAngle >= upThreshold) {
-    newStage = 'up';
-    if (tracker) tracker.openReached = true;
-    formCue = 'Arms out wide!';
-  } else if (armAngle <= downThreshold) {
-    // Closed: Arms returned to sides below downThreshold
-    newStage = 'down';
-    const hadOpen = tracker ? tracker.openReached : currentStage === 'up';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
+  if (repEligible) {
+    // Open: Arms raised out past upThreshold
+    if (armAngle >= upThreshold) {
+      newStage = 'up';
+      if (tracker) tracker.openReached = true;
+      formCue = 'Arms out wide!';
+    } else if (armAngle <= downThreshold) {
+      // Closed: Arms returned to sides below downThreshold
+      newStage = 'down';
+      const hadOpen = tracker ? tracker.openReached : currentStage === 'up';
+      const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
-    if (hadOpen && cooldownOk) {
-      repCompleted = true;
-      if (tracker) {
-        tracker.openReached = false;
-        tracker.lastRepTime = now;
+      if (hadOpen && cooldownOk) {
+        repCompleted = true;
+        if (tracker) {
+          tracker.openReached = false;
+          tracker.lastRepTime = now;
+        }
+        formCue = 'Jumping jack counted!';
       }
-      formCue = 'Jumping jack counted!';
     }
   }
 
@@ -370,8 +419,10 @@ export const evaluateLungeLandmarks = (
   tracker?: ExerciseTrackerState,
   config: ExerciseConfig = EXERCISE_CATALOG.lunges
 ): TelemetryResult => {
-  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? DEFAULT_MIN_JOINT_CONFIDENCE;
   const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const minRepConf = config.confidenceThresholds?.minRepConfidence ?? DEFAULT_MIN_REP_CONFIDENCE;
+
   const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE], minConf, minJoints);
   const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE], minConf, minJoints);
 
@@ -401,6 +452,14 @@ export const evaluateLungeLandmarks = (
   ) || config.repThresholds.upThreshold;
 
   const activeKneeAngle = Math.min(leftKneeAngle, rightKneeAngle);
+  const isLeft = leftKneeAngle <= rightKneeAngle;
+
+  const hip = landmarks[isLeft ? LANDMARK_INDEX.LEFT_HIP : LANDMARK_INDEX.RIGHT_HIP];
+  const knee = landmarks[isLeft ? LANDMARK_INDEX.LEFT_KNEE : LANDMARK_INDEX.RIGHT_KNEE];
+  const ankle = landmarks[isLeft ? LANDMARK_INDEX.LEFT_ANKLE : LANDMARK_INDEX.RIGHT_ANKLE];
+
+  // Rep counting eligibility: active leg joints must meet minRepConfidence
+  const repEligible = isAngleEligibleForReps([hip, knee, ankle], minRepConf);
 
   const downThreshold = config.repThresholds.downThreshold;
   const upThreshold = config.repThresholds.upThreshold;
@@ -411,22 +470,24 @@ export const evaluateLungeLandmarks = (
   let formCue: string | null = null;
   const now = Date.now();
 
-  if (activeKneeAngle <= downThreshold) {
-    newStage = 'down';
-    if (tracker) tracker.bottomReached = true;
-    formCue = 'Good lunge step, now rise!';
-  } else if (activeKneeAngle >= upThreshold) {
-    newStage = 'up';
-    const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
-    const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
+  if (repEligible) {
+    if (activeKneeAngle <= downThreshold) {
+      newStage = 'down';
+      if (tracker) tracker.bottomReached = true;
+      formCue = 'Good lunge step, now rise!';
+    } else if (activeKneeAngle >= upThreshold) {
+      newStage = 'up';
+      const hadBottom = tracker ? tracker.bottomReached : currentStage === 'down';
+      const cooldownOk = tracker ? now - tracker.lastRepTime > cooldownMs : true;
 
-    if (hadBottom && cooldownOk) {
-      repCompleted = true;
-      if (tracker) {
-        tracker.bottomReached = false;
-        tracker.lastRepTime = now;
+      if (hadBottom && cooldownOk) {
+        repCompleted = true;
+        if (tracker) {
+          tracker.bottomReached = false;
+          tracker.lastRepTime = now;
+        }
+        formCue = 'Lunge counted! Excellent!';
       }
-      formCue = 'Lunge counted! Excellent!';
     }
   }
 
@@ -446,8 +507,10 @@ export const evaluatePlankLandmarks = (
   landmarks: LandmarkPoint[],
   config: ExerciseConfig = EXERCISE_CATALOG.plank
 ): TelemetryResult => {
-  const minConf = config.confidenceThresholds?.minJointConfidence ?? 0.20;
+  const minConf = config.confidenceThresholds?.minJointConfidence ?? DEFAULT_MIN_JOINT_CONFIDENCE;
   const minJoints = config.confidenceThresholds?.minVisibleJoints ?? 2;
+  const minFormConf = config.confidenceThresholds?.minFormGuardConfidence ?? DEFAULT_MIN_FORM_CONFIDENCE;
+
   const leftIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP], minConf, minJoints);
   const rightIn = checkLandmarksInFrame(landmarks, [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP], minConf, minJoints);
 
@@ -502,8 +565,13 @@ export const evaluatePlankLandmarks = (
   const deviation = Math.abs(targetAngle - straightLineAngle);
   const isAligned = deviation <= maxDeviation;
 
+  // Form check: only issue form fault if key joints meet minFormConf
+  const canIssueFormFault =
+    (shoulder && (shoulder.visibility === undefined || shoulder.visibility >= minFormConf)) &&
+    (hip && (hip.visibility === undefined || hip.visibility >= minFormConf));
+
   let formCue = 'Plank holding strong!';
-  if (!isAligned) {
+  if (!isAligned && canIssueFormFault) {
     formFaults.push({
       joint: 'hip',
       x: hip.x,

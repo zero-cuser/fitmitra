@@ -683,7 +683,7 @@ export const CameraView: React.FC = () => {
         }`}
       />
 
-      {/* Step back to fit in frame overlay when user is out of frame or confidence <= 0.65 */}
+      {/* Step back to fit in frame overlay when user is out of frame */}
       {viewState === 'active' && !isInFrame && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-200">
           <div className="flex items-center space-x-2.5 px-5 py-3 rounded-2xl bg-amber-500 text-black font-extrabold text-sm shadow-2xl shadow-amber-500/30 border border-amber-300 animate-pulse">
@@ -691,7 +691,7 @@ export const CameraView: React.FC = () => {
             <span>Step back to fit in frame</span>
           </div>
           <p className="text-xs text-amber-200 font-medium mt-2 bg-slate-900/90 px-3 py-1 rounded-full border border-amber-500/20">
-            Full body &amp; active joints must be visible (Confidence &gt; 65%)
+            Full body &amp; active joints must be visible in frame
           </p>
         </div>
       )}

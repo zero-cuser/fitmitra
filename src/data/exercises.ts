@@ -1,4 +1,5 @@
-import type { ExerciseConfig, ExerciseKey } from '../types/fitness';
+import type { ExerciseConfig, ExerciseKey } from '../types/fitness.ts';
+import { LANDMARK_INDEX } from '../types/fitness.ts';
 
 /**
  * EXERCISE_CATALOG is the single source of truth for all exercises in FitMitra.
@@ -28,8 +29,14 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       earlyCueAngle: 135
     },
     confidenceThresholds: {
-      minJointConfidence: 0.20,
-      minVisibleJoints: 2
+      minJointConfidence: 0.25,
+      minVisibleJoints: 2,
+      minRepConfidence: 0.30,
+      minFormGuardConfidence: 0.35,
+      requiredJointChains: [
+        [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE],
+        [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE]
+      ]
     },
     instructions: [
       'Stand with feet shoulder-width apart, toes pointed slightly outward.',
@@ -66,8 +73,14 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       maxDeviation: 18
     },
     confidenceThresholds: {
-      minJointConfidence: 0.20,
-      minVisibleJoints: 2
+      minJointConfidence: 0.25,
+      minVisibleJoints: 2,
+      minRepConfidence: 0.30,
+      minFormGuardConfidence: 0.35,
+      requiredJointChains: [
+        [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_ELBOW, LANDMARK_INDEX.LEFT_WRIST],
+        [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_ELBOW, LANDMARK_INDEX.RIGHT_WRIST]
+      ]
     },
     instructions: [
       'Place hands slightly wider than shoulder-width apart.',
@@ -101,8 +114,14 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       repCooldownMs: 500
     },
     confidenceThresholds: {
-      minJointConfidence: 0.20,
-      minVisibleJoints: 2
+      minJointConfidence: 0.25,
+      minVisibleJoints: 2,
+      minRepConfidence: 0.30,
+      minFormGuardConfidence: 0.35,
+      requiredJointChains: [
+        [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_WRIST],
+        [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_WRIST]
+      ]
     },
     instructions: [
       'Start standing upright with feet together and hands at sides (< 70°).',
@@ -136,8 +155,14 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       repCooldownMs: 600
     },
     confidenceThresholds: {
-      minJointConfidence: 0.20,
-      minVisibleJoints: 2
+      minJointConfidence: 0.25,
+      minVisibleJoints: 2,
+      minRepConfidence: 0.30,
+      minFormGuardConfidence: 0.35,
+      requiredJointChains: [
+        [LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_KNEE, LANDMARK_INDEX.LEFT_ANKLE],
+        [LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_KNEE, LANDMARK_INDEX.RIGHT_ANKLE]
+      ]
     },
     instructions: [
       'Step forward smoothly with one leg.',
@@ -176,8 +201,14 @@ export const EXERCISE_CATALOG: Record<ExerciseKey, ExerciseConfig> = {
       maxVerticalDelta: 0.40
     },
     confidenceThresholds: {
-      minJointConfidence: 0.20,
-      minVisibleJoints: 2
+      minJointConfidence: 0.25,
+      minVisibleJoints: 2,
+      minRepConfidence: 0.30,
+      minFormGuardConfidence: 0.35,
+      requiredJointChains: [
+        [LANDMARK_INDEX.LEFT_SHOULDER, LANDMARK_INDEX.LEFT_HIP, LANDMARK_INDEX.LEFT_ANKLE],
+        [LANDMARK_INDEX.RIGHT_SHOULDER, LANDMARK_INDEX.RIGHT_HIP, LANDMARK_INDEX.RIGHT_ANKLE]
+      ]
     },
     instructions: [
       'Rest on forearms with elbows aligned directly under shoulders.',
@@ -278,6 +309,16 @@ export const validateExerciseConfig = (
     }
     if (confidenceThresholds.minVisibleJoints < 1) {
       errors.push(`minVisibleJoints must be >= 1, got ${confidenceThresholds.minVisibleJoints}`);
+    }
+    if (confidenceThresholds.minRepConfidence !== undefined) {
+      if (confidenceThresholds.minRepConfidence <= 0 || confidenceThresholds.minRepConfidence > 1.0) {
+        errors.push(`minRepConfidence must be in (0, 1.0], got ${confidenceThresholds.minRepConfidence}`);
+      }
+    }
+    if (confidenceThresholds.minFormGuardConfidence !== undefined) {
+      if (confidenceThresholds.minFormGuardConfidence <= 0 || confidenceThresholds.minFormGuardConfidence > 1.0) {
+        errors.push(`minFormGuardConfidence must be in (0, 1.0], got ${confidenceThresholds.minFormGuardConfidence}`);
+      }
     }
   }
 
