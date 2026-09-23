@@ -390,6 +390,23 @@ export const CameraView: React.FC<CameraViewProps> = ({ onBack, onComplete }) =>
         console.warn('MediaPipe Pose setup note:', poseErr);
       }
 
+      // If MediaPipe failed to load and the user is offline, fail gracefully with honest guidance
+      if (!poseRef.current && typeof navigator !== 'undefined' && !navigator.onLine) {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
+        setErrorMessage(
+          'MediaPipe vision model assets (~9MB) are not yet cached on this device and cannot be downloaded while offline. Practice with the Interactive Simulator or log reps manually.'
+        );
+        setViewState('error');
+        setIsTracking(false);
+        return;
+      }
+
       isRunningRef.current = true;
       setViewState('active');
       setIsTracking(true);

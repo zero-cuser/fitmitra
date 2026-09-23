@@ -27,7 +27,11 @@ import {
   ChevronRight,
   Eye,
   Camera,
-  Heart
+  Heart,
+  Trash2,
+  AlertTriangle,
+  FileText,
+  WifiOff
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkout } from '@/context/WorkoutContext';
@@ -35,6 +39,14 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import {
+  getStorageInventory,
+  exportAllUserData,
+  clearWorkoutHistory,
+  clearNutritionHistory,
+  wipeAllLocalData,
+  StorageInventoryItem
+} from '@/utils/storageSafety';
 
 export const ProfileView: React.FC = () => {
   const { user, isAuthenticated, openAuthModal, logout, loginAsGuest } = useAuth();
@@ -48,7 +60,16 @@ export const ProfileView: React.FC = () => {
     challengeUpdates: true
   });
 
-  const [cacheClearFeedback, setCacheClearFeedback] = useState<string | null>(null);
+  const [storageInventory, setStorageInventory] = useState<StorageInventoryItem[]>([]);
+  const [privacyFeedback, setPrivacyFeedback] = useState<{ text: string; type: 'success' | 'danger' } | null>(null);
+
+  const refreshInventory = () => {
+    try {
+      setStorageInventory(getStorageInventory());
+    } catch {
+      // ignore
+    }
+  };
 
   useEffect(() => {
     try {
@@ -59,6 +80,7 @@ export const ProfileView: React.FC = () => {
     } catch {
       // Ignore fallback
     }
+    refreshInventory();
   }, []);
 
   const toggleNotification = (key: keyof typeof notifications) => {
@@ -73,37 +95,46 @@ export const ProfileView: React.FC = () => {
 
   const handleExportData = () => {
     try {
-      const history = localStorage.getItem('fitmitra_daily_calorie_history') || '[]';
-      const parsedHistory = JSON.parse(history);
-      const exportObject = {
-        userProfile: user,
-        calorieHistory: parsedHistory,
-        exportedAt: new Date().toISOString(),
-        version: '1.0'
-      };
-
-      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportObject, null, 2));
+      const payload = exportAllUserData();
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute('href', dataStr);
-      downloadAnchor.setAttribute('download', `fitmitra_fitness_backup_${new Date().toISOString().slice(0, 10)}.json`);
+      downloadAnchor.setAttribute('download', `fitmitra_userData_backup_${new Date().toISOString().slice(0, 10)}.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      setPrivacyFeedback({ text: 'Full user data exported successfully.', type: 'success' });
+      setTimeout(() => setPrivacyFeedback(null), 4000);
     } catch (e) {
       console.error('Export failed:', e);
+      setPrivacyFeedback({ text: 'Failed to export user data.', type: 'danger' });
+      setTimeout(() => setPrivacyFeedback(null), 4000);
     }
   };
 
-  const handleClearCache = () => {
-    if (window.confirm('Reset local workout history cache? This will clear locally recorded session logs.')) {
-      try {
-        localStorage.removeItem('fitmitra_daily_calorie_history');
-        localStorage.removeItem('fitmitra_logged_meals');
-        setCacheClearFeedback('Local workout cache cleared successfully.');
-        setTimeout(() => setCacheClearFeedback(null), 4000);
-      } catch (e) {
-        console.error('Clear cache failed:', e);
-      }
+  const handleClearWorkouts = () => {
+    if (window.confirm('Clear all recorded workout history and calorie logs? Your profile biometrics will be preserved.')) {
+      clearWorkoutHistory();
+      refreshInventory();
+      setPrivacyFeedback({ text: 'Workout and calorie history cleared.', type: 'success' });
+      setTimeout(() => setPrivacyFeedback(null), 4000);
+    }
+  };
+
+  const handleClearNutrition = () => {
+    if (window.confirm('Clear all logged meals and mess tracking data?')) {
+      clearNutritionHistory();
+      refreshInventory();
+      setPrivacyFeedback({ text: 'Nutrition history cleared.', type: 'success' });
+      setTimeout(() => setPrivacyFeedback(null), 4000);
+    }
+  };
+
+  const handleWipeAll = () => {
+    if (window.confirm('PERMANENT DATA WIPE: Are you sure you want to delete ALL FitMitra local data? This will remove your account profile, streaks, meals, and workout logs completely.')) {
+      wipeAllLocalData();
+      refreshInventory();
+      logout();
     }
   };
 
@@ -418,7 +449,8 @@ export const ProfileView: React.FC = () => {
           <span>3. Privacy &amp; Security</span>
         </h3>
 
-        <Card variant="default" className="space-y-4">
+        <Card variant="default" className="space-y-5">
+          {/* Privacy Guarantees */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Guarantee 1 */}
             <div className="p-3.5 rounded-2xl bg-surface-well border border-border-subtle space-y-1.5">
@@ -427,7 +459,7 @@ export const ProfileView: React.FC = () => {
                 <span className="text-xs font-bold">100% On-Device Vision</span>
               </div>
               <p className="text-[11px] text-text-secondary leading-relaxed">
-                Your webcam video stream is processed entirely within your browser via WebAssembly. No video frames are ever recorded, saved, or uploaded to any server.
+                Your webcam video stream is processed in memory on your device via WebAssembly. No video frames, audio, or pose landmarks are ever recorded or transmitted to any cloud server.
               </p>
             </div>
 
@@ -438,7 +470,7 @@ export const ProfileView: React.FC = () => {
                 <span className="text-xs font-bold">Local Data Sovereignty</span>
               </div>
               <p className="text-[11px] text-text-secondary leading-relaxed">
-                Your daily workout records, meal logs, and streaks are stored strictly in client-side LocalStorage. You have full custody and control over your data.
+                Your biometric profile, calorie targets, workout history, and mess meal logs live strictly in client-side LocalStorage. FitMitra operates with zero external tracking or telemetry.
               </p>
             </div>
 
@@ -446,44 +478,121 @@ export const ProfileView: React.FC = () => {
             <div className="p-3.5 rounded-2xl bg-surface-well border border-border-subtle space-y-1.5">
               <div className="flex items-center space-x-2 text-accent">
                 <Lock className="w-4 h-4" />
-                <span className="text-xs font-bold">Camera Isolation</span>
+                <span className="text-xs font-bold">Hardware Lifecycle Control</span>
               </div>
               <p className="text-[11px] text-text-secondary leading-relaxed">
-                The camera hardware is completely deactivated the moment you navigate away from the AI Pose Coach. Zero background video capture is permitted.
+                Camera hardware tracks are stopped immediately upon leaving the workout screen. You can also run workouts in 100% offline mode using our deterministic Kinematic Simulator.
               </p>
             </div>
           </div>
 
-          {/* Data Controls & Backup Actions */}
-          <div className="pt-2 border-t border-border-subtle flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center space-x-2 text-xs text-text-secondary">
-              <Database className="w-3.5 h-3.5 text-text-muted" />
-              <span>Client Storage Status: <strong className="text-success font-semibold">Active &amp; Secure</strong></span>
+          {/* Local Storage Inventory Breakdown */}
+          <div className="space-y-3 pt-3 border-t border-border-subtle">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Database className="w-4 h-4 text-text-muted" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary">
+                  Client-Side Storage Inventory
+                </h4>
+              </div>
+              <span className="text-[11px] text-text-muted font-mono">
+                Total Local Footprint: {Math.max(1, Math.round(storageInventory.reduce((acc, item) => acc + item.sizeBytes, 0) / 1024))} KB
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {storageInventory.map((item) => (
+                <div
+                  key={item.key}
+                  className="p-2.5 rounded-xl bg-surface-elevated/60 border border-border-subtle flex items-center justify-between text-xs"
+                >
+                  <div className="space-y-0.5 truncate mr-2">
+                    <p className="font-semibold text-text-primary truncate">{item.label}</p>
+                    <p className="font-mono text-[10px] text-text-muted truncate">{item.key}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {item.exists ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-success/10 text-success border border-success/20">
+                        {item.sizeBytes} B {item.itemCount !== undefined ? `(${item.itemCount})` : ''}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-surface-well text-text-muted border border-border-subtle">
+                        Empty
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Data Export & Granular Deletion Controls */}
+          <div className="pt-3 border-t border-border-subtle space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-bold text-text-primary">Data Portability &amp; Backup</h4>
+                <p className="text-[11px] text-text-secondary">
+                  Download an unencrypted JSON snapshot of your entire local profile, workouts, and nutrition.
+                </p>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleExportData}
                 leftIcon={<Download className="w-3.5 h-3.5" />}
+                className="shrink-0"
               >
-                Export Fitness Data (JSON)
+                Export All Data (JSON)
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleClearCache}
-              >
-                Reset Local Cache
-              </Button>
+            </div>
+
+            {/* Granular Deletion Controls */}
+            <div className="p-3.5 rounded-2xl bg-danger/5 border border-danger/20 space-y-3">
+              <div className="flex items-center space-x-2 text-danger">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <h4 className="text-xs font-bold uppercase tracking-wider">Data Erasure &amp; Reset Controls</h4>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleClearWorkouts}
+                  className="text-xs"
+                >
+                  Clear Workout History
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleClearNutrition}
+                  className="text-xs"
+                >
+                  Clear Meal Logs
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleWipeAll}
+                  leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                  className="text-xs ml-auto"
+                >
+                  Wipe All Local Data
+                </Button>
+              </div>
             </div>
           </div>
 
-          {cacheClearFeedback && (
-            <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-success text-xs font-medium flex items-center space-x-2">
+          {privacyFeedback && (
+            <div
+              className={`p-3 rounded-xl border text-xs font-medium flex items-center space-x-2 ${
+                privacyFeedback.type === 'success'
+                  ? 'bg-success/10 border-success/30 text-success'
+                  : 'bg-danger/10 border-danger/30 text-danger'
+              }`}
+            >
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{cacheClearFeedback}</span>
+              <span>{privacyFeedback.text}</span>
             </div>
           )}
         </Card>

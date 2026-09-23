@@ -17,6 +17,7 @@ import { ProfileView } from '@/components/Profile/ProfileView';
 import { HomeDashboard } from '@/components/Dashboard/HomeDashboard';
 import { Badge } from '@/components/ui/Badge';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { NetworkBanner } from '@/components/ui/NetworkBanner';
 import {
   Shield,
   Eye,
@@ -66,6 +67,7 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div className="flex-1 lg:pl-64 xl:pl-72 flex flex-col min-w-0 pb-20 lg:pb-8">
+        <NetworkBanner />
         <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
           
           {/* TAB 1: HOME DASHBOARD */}

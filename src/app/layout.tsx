@@ -4,6 +4,8 @@ import { AuthProvider } from '@/context/AuthContext';
 import { WorkoutProvider } from '@/context/WorkoutContext';
 import { AuthModal } from '@/components/Auth/AuthModal';
 
+import { NetworkProvider } from '@/context/NetworkContext';
+
 export const metadata: Metadata = {
   title: 'FitMitra - AI Biometric Fitness Coach',
   description: 'Zero-hardware client-side AI fitness coach with real-time pose estimation, kinematic rep counting, and posture guidance for student life.',
@@ -28,12 +30,14 @@ export default function RootLayout({
         <script defer src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossOrigin="anonymous"></script>
       </head>
       <body className="bg-background text-text-primary min-h-screen antialiased selection:bg-primary selection:text-white">
-        <AuthProvider>
-          <WorkoutProvider>
-            {children}
-            <AuthModal />
-          </WorkoutProvider>
-        </AuthProvider>
+        <NetworkProvider>
+          <AuthProvider>
+            <WorkoutProvider>
+              {children}
+              <AuthModal />
+            </WorkoutProvider>
+          </AuthProvider>
+        </NetworkProvider>
       </body>
     </html>
   );
