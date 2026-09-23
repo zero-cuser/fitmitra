@@ -717,6 +717,17 @@ export const CameraView: React.FC<CameraViewProps> = ({ onBack, onComplete }) =>
           }`}
         />
 
+        {/* SCREEN-READER LIVE STATUS ANNOUNCER */}
+        {(viewState === 'active' || viewState === 'simulating') && (
+          <div className="sr-only" aria-live="polite" aria-atomic="true">
+            {isPlank
+              ? `Hold time: ${sessionReps} seconds. ${plankMetrics.isGoodAlignment ? 'Good alignment' : 'Adjust position'}.`
+              : `Stage: ${currentStage}. Reps completed: ${sessionReps} of ${targetReps}. ${
+                  activeFaults.length > 0 ? activeFaults[0].message : ''
+                }`}
+          </div>
+        )}
+
         {/* FLOATING HUD OVERLAYS (Stage + Reps) */}
         {(viewState === 'active' || viewState === 'simulating') && (
           <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row gap-2.5 pointer-events-none">

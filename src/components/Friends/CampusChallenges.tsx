@@ -279,7 +279,12 @@ export const CampusChallenges: React.FC<CampusChallengesProps> = ({ onStartWorko
 
       {/* View Challenge Modal */}
       {selectedChallenge && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="challenge-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+        >
           <div className="relative w-full max-w-xl bg-surface border border-border-subtle rounded-3xl p-6 sm:p-8 shadow-2xl text-text-primary overflow-hidden max-h-[90vh] overflow-y-auto space-y-6">
             
             {/* Top Close Button */}
@@ -302,7 +307,7 @@ export const CampusChallenges: React.FC<CampusChallengesProps> = ({ onStartWorko
                 </span>
               </div>
 
-              <h3 className="text-2xl font-black tracking-tight text-text-primary">
+              <h3 id="challenge-modal-title" className="text-2xl font-black tracking-tight text-text-primary">
                 {selectedChallenge.name}
               </h3>
               <p className="text-xs sm:text-sm text-text-secondary mt-1">

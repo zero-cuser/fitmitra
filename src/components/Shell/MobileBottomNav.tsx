@@ -35,7 +35,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ currentTab, on
           <button
             key={item.id}
             onClick={() => onSelectTab(item.id)}
-            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-center transition-all relative cursor-pointer ${
+            aria-current={isActive ? 'page' : undefined}
+            className={`flex flex-col items-center justify-center flex-1 h-full py-1 text-center transition-all relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               isActive ? 'text-primary-bright' : 'text-text-muted hover:text-text-secondary'
             }`}
           >

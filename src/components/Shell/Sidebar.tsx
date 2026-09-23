@@ -85,7 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, onSelectTab }) => 
             <button
               key={item.id}
               onClick={() => onSelectTab(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all relative group cursor-pointer ${
+              aria-current={isActive ? 'page' : undefined}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl font-bold text-xs sm:text-sm transition-all relative group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                 isActive
                   ? 'bg-primary/10 text-primary-bright border border-primary/30 shadow-md shadow-primary/10'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'

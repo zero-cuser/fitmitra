@@ -76,7 +76,12 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="faceoff-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="relative w-full max-w-xl bg-surface border border-border-subtle rounded-3xl p-6 sm:p-8 shadow-2xl text-text-primary overflow-hidden max-h-[90vh] overflow-y-auto space-y-6">
         {/* Ambient glow ornaments */}
         <div className="absolute -top-20 -right-20 w-44 h-44 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
@@ -97,7 +102,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
             <Trophy className="w-3.5 h-3.5" />
             <span>Head-to-Head Faceoff</span>
           </div>
-          <h3 className="text-2xl font-black tracking-tight text-text-primary">
+          <h3 id="faceoff-modal-title" className="text-2xl font-black tracking-tight text-text-primary">
             Today&apos;s Biometric Faceoff
           </h3>
           <p className="text-xs text-text-secondary mt-1">
