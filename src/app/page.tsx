@@ -235,13 +235,18 @@ export default function Home() {
           {activeTab === 'community' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <SectionHeader
-                title="Campus Friends & Daily Faceoff"
-                subtitle="Connect with friends, compare daily reps, and cheer each other on."
+                title="Campus Challenges & Friends"
+                subtitle="Join campus fitness sprints, track dorm challenge goals, and compare daily progress."
                 badge={<Badge color="accent">Community Hub</Badge>}
                 icon={<Users className="w-5 h-5 text-accent" />}
               />
 
-              <FriendsHub />
+              <FriendsHub
+                onStartWorkout={() => {
+                  setActiveTab('workout');
+                  setWorkoutMode('coach');
+                }}
+              />
             </div>
           )}
 

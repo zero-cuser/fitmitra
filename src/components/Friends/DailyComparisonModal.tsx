@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
-import { X, Trophy, Flame, Utensils, Award, HeartHandshake, ShieldCheck, Zap, ArrowRight } from 'lucide-react';
+import { X, Trophy, Flame, Utensils, ShieldCheck, Zap, HeartHandshake } from 'lucide-react';
 import { Friend, UserProfile } from '@/types/fitness';
 import { useWorkout } from '@/context/WorkoutContext';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import confetti from 'canvas-confetti';
 
 interface DailyComparisonModalProps {
@@ -19,7 +21,8 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
   onClose,
   onCheer
 }) => {
-  const { sessionReps, caloriesBurnedToday, caloriesGainedToday, streakDays, postureScoreToday, soundEnabled } = useWorkout();
+  const { sessionReps, caloriesBurnedToday, caloriesGainedToday, streakDays, postureScoreToday } =
+    useWorkout();
 
   if (!friend || !currentUser) return null;
 
@@ -28,11 +31,11 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.7 } });
   };
 
-  // Compare metrics
+  // Compare real metrics
   const comparisonItems = [
     {
       label: 'Workout Reps Today',
-      icon: <Zap className="w-4 h-4 text-emerald-400" />,
+      icon: <Zap className="w-4 h-4 text-primary" />,
       userVal: sessionReps,
       friendVal: friend.todayStats.repsCompleted,
       unit: 'reps',
@@ -40,7 +43,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
     },
     {
       label: 'Calories Burned (Exercise)',
-      icon: <Flame className="w-4 h-4 text-orange-400" />,
+      icon: <Flame className="w-4 h-4 text-warning" />,
       userVal: caloriesBurnedToday,
       friendVal: friend.todayStats.caloriesBurned,
       unit: 'kcal',
@@ -48,15 +51,15 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
     },
     {
       label: 'Food & Meals Logged (Intake)',
-      icon: <Utensils className="w-4 h-4 text-amber-400" />,
+      icon: <Utensils className="w-4 h-4 text-accent" />,
       userVal: caloriesGainedToday,
       friendVal: friend.todayStats.caloriesGained,
       unit: 'kcal',
-      userWins: caloriesGainedToday <= friend.todayStats.caloriesGained // Lower or mindful intake
+      userWins: caloriesGainedToday <= friend.todayStats.caloriesGained
     },
     {
       label: 'Form & Consistency Score',
-      icon: <ShieldCheck className="w-4 h-4 text-cyan-400" />,
+      icon: <ShieldCheck className="w-4 h-4 text-success" />,
       userVal: postureScoreToday,
       friendVal: friend.todayStats.postureScore,
       unit: '%',
@@ -64,7 +67,7 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
     },
     {
       label: 'Active Streak',
-      icon: <Trophy className="w-4 h-4 text-yellow-400" />,
+      icon: <Trophy className="w-4 h-4 text-warning" />,
       userVal: streakDays,
       friendVal: friend.todayStats.streakDays,
       unit: 'days',
@@ -74,111 +77,130 @@ export const DailyComparisonModal: React.FC<DailyComparisonModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-emerald-500/10 text-white overflow-hidden max-h-[90vh] overflow-y-auto">
-        
-        {/* Background glow ornament */}
-        <div className="absolute -top-20 -right-20 w-44 h-44 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-44 h-44 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative w-full max-w-xl bg-surface border border-border-subtle rounded-3xl p-6 sm:p-8 shadow-2xl text-text-primary overflow-hidden max-h-[90vh] overflow-y-auto space-y-6">
+        {/* Ambient glow ornaments */}
+        <div className="absolute -top-20 -right-20 w-44 h-44 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-44 h-44 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          className="absolute top-5 right-5 p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+          aria-label="Close modal"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Header */}
-        <div className="mb-6">
-          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-2">
+        <div>
+          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary-bright text-xs font-semibold mb-2">
             <Trophy className="w-3.5 h-3.5" />
-            <span>Head-to-Head Progress Matchup</span>
+            <span>Head-to-Head Faceoff</span>
           </div>
-          <h3 className="text-2xl font-black tracking-tight">Today&apos;s Fitness Faceoff</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Comparing your daily biometric progress side-by-side with your friend.
+          <h3 className="text-2xl font-black tracking-tight text-text-primary">
+            Today&apos;s Biometric Faceoff
+          </h3>
+          <p className="text-xs text-text-secondary mt-1">
+            Side-by-side real progress comparison with your campus fitness friend.
           </p>
         </div>
 
         {/* User vs Friend Profile Banner */}
-        <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 mb-6">
+        <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-surface-well border border-border-subtle">
           {/* Current User */}
           <div className="flex flex-col items-center text-center p-2">
-            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${currentUser.avatarColor} flex items-center justify-center text-white font-black text-base shadow-md mb-2`}>
+            <div
+              className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${currentUser.avatarColor} flex items-center justify-center text-white font-black text-base shadow-md mb-2`}
+            >
               {currentUser.name.charAt(0)}
             </div>
-            <span className="text-xs font-bold text-white line-clamp-1">{currentUser.name} (You)</span>
-            <span className="text-[10px] text-emerald-400 font-mono">@{currentUser.username}</span>
-            <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-1">{currentUser.hostelWing || 'Active Member'}</span>
+            <span className="text-xs font-bold text-text-primary line-clamp-1">
+              {currentUser.name} (You)
+            </span>
+            <span className="text-[10px] text-primary-bright font-mono">@{currentUser.username}</span>
+            <span className="text-[10px] text-text-muted mt-0.5 line-clamp-1">
+              {currentUser.hostelWing || 'Active Member'}
+            </span>
           </div>
 
           {/* Friend */}
-          <div className="flex flex-col items-center text-center p-2 border-l border-slate-800">
-            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${friend.avatarColor} flex items-center justify-center text-white font-black text-base shadow-md mb-2`}>
+          <div className="flex flex-col items-center text-center p-2 border-l border-border-subtle">
+            <div
+              className={`w-12 h-12 rounded-2xl bg-gradient-to-tr ${friend.avatarColor} flex items-center justify-center text-white font-black text-base shadow-md mb-2`}
+            >
               {friend.name.charAt(0)}
             </div>
-            <span className="text-xs font-bold text-white line-clamp-1">{friend.name}</span>
-            <span className="text-[10px] text-cyan-400 font-mono">@{friend.username}</span>
-            <span className="text-[9px] text-slate-500 mt-0.5 line-clamp-1">{friend.hostelWing || 'Fitness Friend'}</span>
+            <span className="text-xs font-bold text-text-primary line-clamp-1">{friend.name}</span>
+            <span className="text-[10px] text-accent font-mono">@{friend.username}</span>
+            <span className="text-[10px] text-text-muted mt-0.5 line-clamp-1">
+              {friend.hostelWing || 'Fitness Friend'}
+            </span>
           </div>
         </div>
 
         {/* Comparison Rows */}
-        <div className="space-y-3 mb-6">
+        <div className="space-y-2.5">
           {comparisonItems.map((item, idx) => (
             <div
               key={idx}
-              className="p-3.5 rounded-2xl bg-slate-950/50 border border-slate-800/80 flex items-center justify-between gap-2"
+              className="p-3.5 rounded-2xl bg-surface-well border border-border-subtle flex items-center justify-between gap-2"
             >
               {/* User Value */}
-              <div className="w-20 text-left">
-                <span className={`text-sm sm:text-base font-black ${item.userWins ? 'text-emerald-400' : 'text-slate-300'}`}>
-                  {item.userVal} <span className="text-[10px] font-normal text-slate-500">{item.unit}</span>
+              <div className="w-24 text-left">
+                <span
+                  className={`text-sm sm:text-base font-black ${
+                    item.userWins ? 'text-success' : 'text-text-secondary'
+                  }`}
+                >
+                  {item.userVal}{' '}
+                  <span className="text-[10px] font-normal text-text-muted">{item.unit}</span>
                 </span>
                 {item.userWins && (
-                  <span className="block text-[9px] text-emerald-400 font-semibold">Leading ✨</span>
+                  <span className="block text-[9px] text-success font-semibold">Leading ✨</span>
                 )}
               </div>
 
               {/* Metric Label */}
               <div className="flex-1 text-center px-2">
-                <div className="flex items-center justify-center space-x-1.5 text-xs font-semibold text-slate-300">
+                <div className="flex items-center justify-center space-x-1.5 text-xs font-semibold text-text-secondary">
                   {item.icon}
                   <span>{item.label}</span>
                 </div>
               </div>
 
               {/* Friend Value */}
-              <div className="w-20 text-right">
-                <span className={`text-sm sm:text-base font-black ${!item.userWins ? 'text-cyan-400' : 'text-slate-400'}`}>
-                  {item.friendVal} <span className="text-[10px] font-normal text-slate-500">{item.unit}</span>
+              <div className="w-24 text-right">
+                <span
+                  className={`text-sm sm:text-base font-black ${
+                    !item.userWins ? 'text-accent' : 'text-text-secondary'
+                  }`}
+                >
+                  {item.friendVal}{' '}
+                  <span className="text-[10px] font-normal text-text-muted">{item.unit}</span>
                 </span>
                 {!item.userWins && (
-                  <span className="block text-[9px] text-cyan-400 font-semibold">Leading ✨</span>
+                  <span className="block text-[9px] text-accent font-semibold">Leading ✨</span>
                 )}
               </div>
             </div>
           ))}
         </div>
 
-        {/* Action Button: Cheer Friend */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <button
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+          <Button
+            variant="primary"
+            className="w-full sm:flex-1"
             onClick={handleCheerClick}
-            className="w-full sm:flex-1 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all active:scale-[0.99] flex items-center justify-center space-x-2"
+            leftIcon={<HeartHandshake className="w-4 h-4" />}
           >
-            <HeartHandshake className="w-4 h-4" />
-            <span>Cheer @{friend.username} ({friend.cheerCount} cheers)</span>
-          </button>
+            Cheer @{friend.username} ({friend.cheerCount} cheers)
+          </Button>
 
-          <button
-            onClick={onClose}
-            className="w-full sm:w-auto py-3 px-5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
-          >
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={onClose}>
             Done
-          </button>
+          </Button>
         </div>
-
       </div>
     </div>
   );

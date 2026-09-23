@@ -4,7 +4,26 @@ import React, { useState } from 'react';
 import { useWorkout } from '@/context/WorkoutContext';
 import { useAuth } from '@/context/AuthContext';
 import { MESS_MENU_ITEMS, BUDGET_PROTEIN_HACKS } from '@/data/messMenu';
-import { Utensils, Flame, Plus, Trash2, X, DollarSign, Droplets, RotateCcw } from 'lucide-react';
+import {
+  Utensils,
+  Flame,
+  Plus,
+  Trash2,
+  X,
+  DollarSign,
+  Droplets,
+  RotateCcw,
+  Sparkles,
+  Search,
+  Calendar,
+  Clock,
+  ShieldCheck,
+  CheckCircle2
+} from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 
 export const NutritionTracker: React.FC = () => {
   const {
@@ -14,20 +33,30 @@ export const NutritionTracker: React.FC = () => {
     caloriesGainedToday,
     proteinGainedToday,
     waterIntakeToday,
-    addWater,
-    resetWater
+    addWater
   } = useWorkout();
   const { user } = useAuth();
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [isHacksModalOpen, setIsHacksModalOpen] = useState<boolean>(false);
 
-  const categories = ['All', 'Campus Meals', 'High Protein Hack', 'Student Protein', 'Canteen', 'Breakfast'];
+  const categories = [
+    'All',
+    'Campus Meals',
+    'High Protein Hack',
+    'Student Protein',
+    'Canteen',
+    'Breakfast',
+    'Study Snack'
+  ];
 
-  const filteredItems =
-    selectedCategory === 'All'
-      ? MESS_MENU_ITEMS
-      : MESS_MENU_ITEMS.filter((item) => item.category === selectedCategory);
+  const filteredItems = MESS_MENU_ITEMS.filter((item) => {
+    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+    const matchesSearch =
+      !searchQuery.trim() || item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   const dailyProteinTarget = 65; // grams for maintenance
   const proteinPercent = Math.min(Math.round((proteinGainedToday / dailyProteinTarget) * 100), 100);
@@ -38,129 +67,157 @@ export const NutritionTracker: React.FC = () => {
   const targetWater = user?.targetWaterMl || 2500;
   const waterPercent = Math.min(Math.round((waterIntakeToday / targetWater) * 100), 100);
 
+  // Formatted date string for daily navigation header
+  const todayDateString = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  }).format(new Date());
+
   return (
     <div className="space-y-6">
-      
       {/* Top Banner & KPI Bar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-7 shadow-xl space-y-5">
+      <Card variant="elevated" className="space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-2">
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-warning/10 border border-warning/20 text-warning text-xs font-semibold mb-2">
               <Utensils className="w-3.5 h-3.5" />
-              <span>Campus Nutrition & Hydration Engine</span>
+              <span>Campus Nutrition &amp; Hydration</span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Daily Nutrition & Calorie Tracker
+            <h3 className="text-xl sm:text-2xl font-black text-text-primary tracking-tight">
+              Daily Nutrition &amp; Macro Tracker
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Preloaded with everyday campus meals, canteen favorites, and high-protein foods. No unrealistic foods—just real student macros.
+            <p className="text-xs text-text-secondary mt-1">
+              Calibrated for campus mess menus, canteen specials, and student-budget protein sources.
             </p>
           </div>
 
-          <button
-            onClick={() => setIsHacksModalOpen(true)}
-            className="self-start sm:self-auto py-2.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all flex items-center space-x-1.5 active:scale-95"
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>₹100/Day Protein Hacks</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-surface-well border border-border-subtle text-xs text-text-muted">
+              <Calendar className="w-3.5 h-3.5 text-text-muted" />
+              <span>{todayDateString}</span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsHacksModalOpen(true)}
+              leftIcon={<DollarSign className="w-3.5 h-3.5 text-warning" />}
+            >
+              ₹100/Day Protein Guide
+            </Button>
+          </div>
         </div>
 
         {/* Daily Macros & Hydration Overview Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           
-          {/* Calorie Intake Card */}
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+          {/* 1. Calorie Intake Card */}
+          <div className="p-4 rounded-2xl bg-surface-well border border-border-subtle flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-slate-400 font-semibold">Calories Gained Today</span>
-                <Flame className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-semibold text-text-secondary">Caloric Intake</span>
+                <div className="p-1.5 rounded-lg bg-warning/10 text-warning">
+                  <Flame className="w-3.5 h-3.5" />
+                </div>
               </div>
-              <p className="text-2xl font-black text-white">
-                {caloriesGainedToday} <span className="text-xs font-normal text-slate-500">/ {targetCalories} kcal</span>
+              <p className="text-2xl font-black text-text-primary">
+                {caloriesGainedToday.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-text-muted">
+                  / {targetCalories.toLocaleString()} kcal
+                </span>
               </p>
             </div>
-            <div className="mt-3">
-              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div
-                  style={{ width: `${caloriePercent}%` }}
-                  className="h-full bg-gradient-to-r from-amber-500 to-orange-400 rounded-full transition-all duration-500"
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1.5">
-                <span>{caloriePercent}% of daily goal</span>
-                <span>{Math.max(0, targetCalories - caloriesGainedToday)} kcal left</span>
+
+            <div className="space-y-1.5">
+              <ProgressBar value={caloriePercent} variant="warning" size="sm" />
+              <div className="flex justify-between text-[11px] text-text-muted">
+                <span>{caloriePercent}% of daily budget</span>
+                <span className="font-semibold text-text-secondary">
+                  {Math.max(0, targetCalories - caloriesGainedToday)} kcal left
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Protein Intake Card */}
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between">
+          {/* 2. Protein Intake Card */}
+          <div className="p-4 rounded-2xl bg-surface-well border border-border-subtle flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-slate-400 font-semibold">Daily Protein Intake</span>
-                <span className="text-xs font-black text-emerald-400">{proteinPercent}%</span>
+                <span className="text-xs font-semibold text-text-secondary">Protein Target</span>
+                <Badge color="success" size="sm">
+                  {proteinPercent}%
+                </Badge>
               </div>
-              <p className="text-2xl font-black text-white">
-                {proteinGainedToday}g <span className="text-xs font-normal text-slate-500">/ {dailyProteinTarget}g target</span>
+              <p className="text-2xl font-black text-text-primary">
+                {proteinGainedToday}g{' '}
+                <span className="text-xs font-normal text-text-muted">
+                  / {dailyProteinTarget}g target
+                </span>
               </p>
             </div>
-            <div className="mt-3">
-              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div
-                  style={{ width: `${proteinPercent}%` }}
-                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500 shadow-sm shadow-emerald-500/50"
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1.5">
-                <span>Standard Meal Base: ~25g</span>
-                <span>+{Math.max(dailyProteinTarget - proteinGainedToday, 0)}g needed</span>
+
+            <div className="space-y-1.5">
+              <ProgressBar value={proteinPercent} variant="success" size="sm" />
+              <div className="flex justify-between text-[11px] text-text-muted">
+                <span>Standard Base: ~25g</span>
+                <span className="font-semibold text-text-secondary">
+                  {proteinGainedToday >= dailyProteinTarget ? (
+                    <span className="text-success font-bold">Goal Achieved! ✨</span>
+                  ) : (
+                    `+${dailyProteinTarget - proteinGainedToday}g needed`
+                  )}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Water Hydration Monitoring Card */}
-          <div className="p-4 rounded-2xl bg-slate-950/80 border border-cyan-500/20 flex flex-col justify-between">
+          {/* 3. Water Hydration Sentinel Card */}
+          <div className="p-4 rounded-2xl bg-surface-well border border-border-subtle flex flex-col justify-between space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-cyan-400 font-semibold flex items-center space-x-1">
+                <span className="text-xs font-semibold text-accent flex items-center space-x-1.5">
                   <Droplets className="w-3.5 h-3.5" />
                   <span>Hydration Sentinel</span>
                 </span>
-                <span className="text-xs font-black text-cyan-400">{waterPercent}%</span>
+                <Badge color="accent" size="sm">
+                  {waterPercent}%
+                </Badge>
               </div>
-              <p className="text-2xl font-black text-white">
-                {(waterIntakeToday / 1000).toFixed(2)}L <span className="text-xs font-normal text-slate-500">/ {(targetWater / 1000).toFixed(1)}L target</span>
+              <p className="text-2xl font-black text-text-primary">
+                {(waterIntakeToday / 1000).toFixed(2)}L{' '}
+                <span className="text-xs font-normal text-text-muted">
+                  / {(targetWater / 1000).toFixed(1)}L
+                </span>
               </p>
             </div>
 
-            <div className="mt-2 space-y-2">
-              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div
-                  style={{ width: `${waterPercent}%` }}
-                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500 shadow-sm shadow-cyan-500/50"
-                />
-              </div>
+            <div className="space-y-2">
+              <ProgressBar value={waterPercent} variant="accent" size="sm" />
 
               {/* Quick Water Logging Buttons */}
               <div className="flex items-center space-x-1.5 pt-0.5">
                 <button
+                  type="button"
                   onClick={() => addWater(250)}
-                  className="flex-1 py-1 px-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-[10px] font-bold text-cyan-400 transition-colors text-center"
+                  className="flex-1 py-1 px-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 border border-accent/30 text-[10px] font-bold text-accent transition-colors text-center"
                 >
                   +250ml
                 </button>
                 <button
+                  type="button"
                   onClick={() => addWater(500)}
-                  className="flex-1 py-1 px-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 transition-colors text-center"
+                  className="flex-1 py-1 px-1.5 rounded-lg bg-accent/15 hover:bg-accent/25 border border-accent/40 text-[10px] font-bold text-accent transition-colors text-center"
                 >
                   +500ml
                 </button>
                 <button
+                  type="button"
                   onClick={() => addWater(-250)}
                   disabled={waterIntakeToday <= 0}
-                  className="py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-400 disabled:opacity-40 transition-colors"
+                  className="py-1 px-2 rounded-lg bg-surface hover:bg-surface-elevated text-[10px] font-bold text-text-muted disabled:opacity-40 transition-colors"
                   title="Undo 250ml"
+                  aria-label="Undo 250ml water"
                 >
                   <RotateCcw className="w-3 h-3" />
                 </button>
@@ -169,23 +226,41 @@ export const NutritionTracker: React.FC = () => {
           </div>
 
         </div>
-      </div>
+      </Card>
 
-      {/* Category Pills Switcher */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-              selectedCategory === cat
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
+      {/* Daily Navigation, Search & Category Filter Pills */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Category Filter Pills */}
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 no-scrollbar">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-200 ${
+                  selectedCategory === cat
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'bg-surface text-text-muted hover:text-text-primary hover:bg-surface-hover border border-border-subtle'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* Quick Search Input */}
+          <div className="relative w-full sm:w-60">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search food item..."
+              className="w-full pl-9 pr-3 py-1.5 bg-surface border border-border-subtle rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Two Column Grid: Left (Food Menu) + Right (Logged Today) */}
@@ -194,83 +269,118 @@ export const NutritionTracker: React.FC = () => {
         {/* Left: Food Catalog */}
         <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filteredItems.map((item) => (
-            <div
+            <Card
               key={item.id}
-              className="p-4 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all flex items-center justify-between gap-3 group"
+              variant="default"
+              className="p-3.5 flex items-center justify-between gap-3 group"
             >
-              <div className="flex items-center space-x-3">
-                <span className="text-2xl">{item.icon}</span>
-                <div>
-                  <h4 className="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">
+              <div className="flex items-center space-x-3 min-w-0">
+                <div className="w-11 h-11 rounded-2xl bg-surface-well border border-border-subtle flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
+                  {item.icon}
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs font-bold text-text-primary group-hover:text-primary-bright transition-colors line-clamp-1">
                     {item.name}
                   </h4>
-                  <div className="flex items-center space-x-2 text-[10px] text-slate-400 mt-1">
-                    <span className="text-amber-400 font-semibold">{item.calories} kcal</span>
-                    <span>•</span>
-                    <span className="text-emerald-400 font-semibold">{item.protein}g protein</span>
-                    <span>•</span>
-                    <span className="text-slate-500">{item.category}</span>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] mt-1">
+                    <span className="font-bold text-warning font-mono">{item.calories} kcal</span>
+                    <span className="text-text-muted">•</span>
+                    <span className="font-bold text-success font-mono">{item.protein}g protein</span>
+                    <span className="text-text-muted">•</span>
+                    <span className="text-text-muted">{item.category}</span>
                   </div>
                 </div>
               </div>
 
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => logMeal(item)}
-                className="p-2.5 rounded-xl bg-slate-800 hover:bg-emerald-500 text-slate-300 hover:text-slate-950 transition-all active:scale-95 shadow-sm"
-                title="Log this item"
+                className="shrink-0 p-2 hover:bg-success hover:text-slate-950 hover:border-success"
+                title={`Log ${item.name}`}
+                aria-label={`Log ${item.name}`}
               >
                 <Plus className="w-4 h-4" />
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))}
+
+          {filteredItems.length === 0 && (
+            <div className="col-span-full p-8 text-center bg-surface border border-border-subtle rounded-2xl space-y-2">
+              <Utensils className="w-8 h-8 mx-auto text-text-muted opacity-40" />
+              <p className="text-xs text-text-secondary">No food items found matching your filter.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedCategory('All');
+                  setSearchQuery('');
+                }}
+              >
+                Reset Filters
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Right: Today's Logged Items */}
-        <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h4 className="text-sm font-bold text-white flex items-center space-x-2">
-              <span>Today&apos;s Food Log</span>
-              <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
-                {loggedMeals.length} items
+        <div className="lg:col-span-4">
+          <Card variant="elevated" className="p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <div className="flex items-center space-x-2">
+                <h4 className="text-sm font-bold text-text-primary">Today&apos;s Food Log</h4>
+                <Badge color="muted" size="sm">
+                  {loggedMeals.length} items
+                </Badge>
+              </div>
+              <span className="text-xs font-mono font-black text-warning">
+                {caloriesGainedToday.toLocaleString()} kcal
               </span>
-            </h4>
-            <span className="text-xs font-black text-amber-400">{caloriesGainedToday} kcal</span>
-          </div>
-
-          {loggedMeals.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              <Utensils className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p>No meals logged yet today.</p>
-              <p className="text-[10px] mt-1">Tap + on any meal item to record your intake.</p>
             </div>
-          ) : (
-            <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-              {loggedMeals.map((meal) => (
-                <div
-                  key={meal.id}
-                  className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-between gap-2"
-                >
-                  <div className="flex items-center space-x-2.5">
-                    <span className="text-lg">{meal.icon}</span>
-                    <div>
-                      <p className="text-xs font-bold text-white line-clamp-1">{meal.name}</p>
-                      <span className="text-[10px] text-slate-400">
-                        {meal.timestamp} • <strong className="text-amber-400">{meal.calories} kcal</strong> • <strong className="text-emerald-400">{meal.protein}g protein</strong>
-                      </span>
-                    </div>
-                  </div>
 
-                  <button
-                    onClick={() => removeMeal(meal.id)}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-900 transition-colors"
-                    title="Remove item"
+            {loggedMeals.length === 0 ? (
+              <div className="py-8 text-center text-text-muted space-y-1.5">
+                <Utensils className="w-8 h-8 mx-auto opacity-30 text-text-muted" />
+                <p className="text-xs font-medium text-text-secondary">No meals recorded yet today.</p>
+                <p className="text-[11px] text-text-muted">
+                  Tap <span className="text-primary-bright font-bold">+</span> on any mess meal to record intake.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {loggedMeals.map((meal) => (
+                  <div
+                    key={meal.id}
+                    className="p-3 rounded-xl bg-surface-well border border-border-subtle flex items-center justify-between gap-2"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <span className="text-base shrink-0">{meal.icon}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-text-primary line-clamp-1">{meal.name}</p>
+                        <div className="flex items-center space-x-1.5 text-[10px] text-text-muted">
+                          <span>{meal.timestamp}</span>
+                          <span>•</span>
+                          <span className="text-warning font-semibold">{meal.calories} kcal</span>
+                          <span>•</span>
+                          <span className="text-success font-semibold">{meal.protein}g</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeMeal(meal.id)}
+                      className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors shrink-0"
+                      title="Remove item"
+                      aria-label="Remove meal"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
 
       </div>
@@ -278,66 +388,71 @@ export const NutritionTracker: React.FC = () => {
       {/* ₹100 Daily Protein Survival Guide Modal */}
       {isHacksModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-white overflow-hidden max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-surface border border-border-subtle rounded-3xl p-6 sm:p-8 shadow-2xl text-text-primary overflow-hidden max-h-[90vh] overflow-y-auto space-y-6">
             
             <button
               onClick={() => setIsHacksModalOpen(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="absolute top-5 right-5 p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors"
+              aria-label="Close guide"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="mb-6">
-              <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold mb-2">
+            <div>
+              <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-warning/10 border border-warning/20 text-warning text-xs font-semibold mb-2">
                 <DollarSign className="w-3.5 h-3.5" />
-                <span>Budget Biohacking</span>
+                <span>Student Nutrition Guide</span>
               </div>
-              <h3 className="text-2xl font-black tracking-tight">₹100/Day Student Protein Survival Guide</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                How students can hit 65g+ daily protein on a budget without expensive whey isolate supplements.
+              <h3 className="text-2xl font-black tracking-tight text-text-primary">
+                ₹100/Day Student Protein Survival Guide
+              </h3>
+              <p className="text-xs sm:text-sm text-text-secondary mt-1">
+                Practical everyday approaches for campus hostel students to reach 65g+ daily protein on a student budget.
               </p>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               {BUDGET_PROTEIN_HACKS.map((hack, idx) => (
                 <div
                   key={idx}
-                  className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-2 hover:border-slate-700 transition-colors"
+                  className="p-4 rounded-2xl bg-surface-well border border-border-subtle space-y-2 hover:border-border-strong transition-colors"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center space-x-2">
-                      <span className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 font-bold text-xs flex items-center justify-center">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="w-6 h-6 rounded-lg bg-primary/20 text-primary-bright font-bold text-xs flex items-center justify-center shrink-0">
                         {idx + 1}
                       </span>
-                      <h4 className="text-sm font-bold text-white">{hack.title}</h4>
+                      <h4 className="text-sm font-bold text-text-primary">{hack.title}</h4>
                     </div>
+
                     <div className="flex items-center space-x-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                      <Badge color="warning" size="sm">
                         {hack.costPerServing}
-                      </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                      </Badge>
+                      <Badge color="success" size="sm">
                         +{hack.proteinGrams}g Protein
-                      </span>
+                      </Badge>
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-300 pl-8">{hack.tip}</p>
+                  <p className="text-xs text-text-secondary pl-8">{hack.tip}</p>
                   
-                  <div className="flex items-center justify-between pl-8 text-[10px] text-slate-500 pt-1">
+                  <div className="flex items-center justify-between pl-8 text-[11px] text-text-muted pt-1">
                     <span>Prep: {hack.prepTime}</span>
-                    <span className="text-cyan-400 font-medium">{hack.badge}</span>
+                    <span className="text-accent font-medium">{hack.badge}</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-slate-800 flex justify-end">
-              <button
+            <div className="pt-4 border-t border-border-subtle flex justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setIsHacksModalOpen(false)}
-                className="py-2.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition-colors"
               >
                 Close Guide
-              </button>
+              </Button>
             </div>
 
           </div>
