@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { Sidebar, NavTabId } from '@/components/Shell/Sidebar';
 import { MobileTopBar } from '@/components/Shell/MobileTopBar';
 import { MobileBottomNav } from '@/components/Shell/MobileBottomNav';
-import { ExerciseTabs } from '@/components/ExerciseSelector/ExerciseTabs';
+import { WorkoutDiscovery } from '@/components/WorkoutSelection/WorkoutDiscovery';
 import { StatsPanel } from '@/components/AIPoseCoach/StatsPanel';
 import { WeeklyCalorieChart } from '@/components/Progress/WeeklyCalorieChart';
 import { NutritionTracker } from '@/components/MessNutrition/NutritionTracker';
@@ -22,7 +22,9 @@ import {
   Sparkles,
   Cpu,
   TrendingUp,
-  Users
+  Users,
+  Compass,
+  Video
 } from 'lucide-react';
 
 // Isolate CameraView from SSR to prevent hydration issues with browser APIs
@@ -42,6 +44,14 @@ const CameraView = dynamic(
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<NavTabId>('home');
+  const [workoutMode, setWorkoutMode] = useState<'discovery' | 'coach'>('discovery');
+
+  const handleNavigateFromHome = (tab: NavTabId) => {
+    setActiveTab(tab);
+    if (tab === 'workout') {
+      setWorkoutMode('coach');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-text-primary flex flex-col overflow-x-hidden">
@@ -56,84 +66,125 @@ export default function Home() {
         <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
           
           {/* TAB 1: HOME DASHBOARD */}
-          {activeTab === 'home' && <HomeDashboard onNavigate={setActiveTab} />}
+          {activeTab === 'home' && <HomeDashboard onNavigate={handleNavigateFromHome} />}
 
-          {/* TAB 2: WORKOUT (AI Pose Coach & Kinematics) */}
+          {/* TAB 2: WORKOUT (Discovery & Immersive AI Pose Coach) */}
           {activeTab === 'workout' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <SectionHeader
-                title="AI Biometric Pose Coach"
-                subtitle="Select an exercise, enable your camera, and perform reps with real-time joint kinematic feedback."
-                badge={<Badge color="primary" dot>Vision AI Viewport</Badge>}
-                icon={<Cpu className="w-5 h-5 text-primary" />}
-              />
+              
+              {/* Header with Mode Switcher */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+                <SectionHeader
+                  title={workoutMode === 'discovery' ? 'AI Workout Studio' : 'AI Biometric Pose Coach'}
+                  subtitle={
+                    workoutMode === 'discovery'
+                      ? 'Discover campus-friendly routines and launch 100% on-device posture tracking.'
+                      : 'Real-time joint vector kinematics with instant speech feedback and dorm privacy.'
+                  }
+                  badge={
+                    <Badge color="primary" dot>
+                      {workoutMode === 'discovery' ? 'Routine Library' : 'Live Camera Active'}
+                    </Badge>
+                  }
+                  icon={<Cpu className="w-5 h-5 text-primary-bright" />}
+                />
 
-              {/* Exercise Selector */}
-              <div id="camera-viewport-top" className="space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
-                    Target Bodyweight Exercise
-                  </span>
-                  <span className="text-[10px] text-success font-medium">
-                    5 Presets • Sub-30ms Euclidean Kinematics
-                  </span>
+                {/* Mode Switcher Segmented Control */}
+                <div className="flex items-center gap-1 p-1 rounded-2xl bg-surface border border-border-subtle self-start sm:self-center shrink-0">
+                  <button
+                    onClick={() => setWorkoutMode('discovery')}
+                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                      workoutMode === 'discovery'
+                        ? 'bg-primary text-white shadow-md shadow-primary/20'
+                        : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
+                    }`}
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>Discovery</span>
+                  </button>
+
+                  <button
+                    onClick={() => setWorkoutMode('coach')}
+                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                      workoutMode === 'coach'
+                        ? 'bg-primary text-white shadow-md shadow-primary/20'
+                        : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
+                    }`}
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    <span>AI Coach</span>
+                  </button>
                 </div>
-                <ExerciseTabs />
               </div>
 
-              {/* Viewport + Stats Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* Left: Viewport */}
-                <div className="lg:col-span-8 flex flex-col space-y-4">
-                  <CameraView />
+              {/* MODE 1: WORKOUT DISCOVERY */}
+              {workoutMode === 'discovery' && (
+                <div className="space-y-8 animate-in fade-in duration-200">
+                  <WorkoutDiscovery onStartWorkout={() => setWorkoutMode('coach')} />
 
-                  {/* Privacy & Hardware Trust Badges */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center space-x-2.5">
-                      <div className="p-2 rounded-xl bg-success/10 text-success shrink-0">
-                        <Shield className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-text-primary">100% On-Device</p>
-                        <p className="text-[10px] text-text-muted">Zero video streaming or cloud storage</p>
-                      </div>
-                    </div>
+                  {/* AI Space & Equipment Workout Advisor */}
+                  <AIWorkoutAdvisor />
 
-                    <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center space-x-2.5">
-                      <div className="p-2 rounded-xl bg-accent/10 text-accent shrink-0">
-                        <Eye className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-text-primary">33 Keypoints</p>
-                        <p className="text-[10px] text-text-muted">Sub-30ms Euclidean joint vector math</p>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center space-x-2.5">
-                      <div className="p-2 rounded-xl bg-primary/10 text-primary-bright shrink-0">
-                        <Sparkles className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-bold text-text-primary">Voice Coach</p>
-                        <p className="text-[10px] text-text-muted">Real-time speech cues for dorm space</p>
-                      </div>
-                    </div>
+                  {/* Exam Stress & Breath Sanctuary inside workout */}
+                  <div className="pt-4 border-t border-border-subtle">
+                    <ExamStressReset />
                   </div>
                 </div>
+              )}
 
-                {/* Right: Stats & Form Checklist */}
-                <div className="lg:col-span-4">
-                  <StatsPanel />
+              {/* MODE 2: IMMERSIVE AI POSE COACH */}
+              {workoutMode === 'coach' && (
+                <div className="space-y-6 animate-in fade-in duration-200">
+                  {/* Viewport + Companion Stats Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    
+                    {/* Left/Dominant: Camera & Pose Coach Screen */}
+                    <div className="lg:col-span-8 flex flex-col space-y-4">
+                      <CameraView onBack={() => setWorkoutMode('discovery')} />
+
+                      {/* Privacy & Hardware Trust Badges */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center space-x-2.5">
+                          <div className="p-2 rounded-xl bg-success/10 text-success shrink-0">
+                            <Shield className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-text-primary">100% On-Device</p>
+                            <p className="text-[10px] text-text-muted">Zero video streaming or cloud storage</p>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center space-x-2.5">
+                          <div className="p-2 rounded-xl bg-accent/10 text-accent shrink-0">
+                            <Eye className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-text-primary">33 Keypoints</p>
+                            <p className="text-[10px] text-text-muted">Sub-30ms Euclidean joint vector math</p>
+                          </div>
+                        </div>
+
+                        <div className="p-3.5 rounded-2xl bg-surface border border-border-subtle flex items-center space-x-2.5">
+                          <div className="p-2 rounded-xl bg-primary/10 text-primary-bright shrink-0">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-text-primary">Voice Coach</p>
+                            <p className="text-[10px] text-text-muted">Real-time speech cues for dorm space</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Companion Stats Panel */}
+                    <div className="lg:col-span-4">
+                      <StatsPanel />
+                    </div>
+
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* AI Space & Equipment Workout Advisor */}
-              <AIWorkoutAdvisor />
-
-              {/* Exam Stress & Breath Sanctuary inside workout */}
-              <div className="pt-4 border-t border-border-subtle">
-                <ExamStressReset />
-              </div>
             </div>
           )}
 

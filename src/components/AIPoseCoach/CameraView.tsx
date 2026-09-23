@@ -11,16 +11,30 @@ import {
   Sliders,
   UserCheck,
   UserX,
-  Play
+  Play,
+  Pause,
+  Square,
+  Volume2,
+  VolumeX,
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  Trophy,
+  RotateCcw,
+  Plus
 } from 'lucide-react';
 import {
   LANDMARK_INDEX,
   evaluateExerciseLandmarks,
   smoothLandmarksEMA,
-  repEngine
+  repEngine,
+  getPlankAlignmentMetrics
 } from './AngleMath';
 import { useWorkout } from '@/context/WorkoutContext';
 import { FormFault, LandmarkPoint } from '@/types/fitness';
+import { EXERCISE_CATALOG } from '@/data/exercises';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 
 type ViewportState = 'idle' | 'requesting' | 'active' | 'simulating' | 'error';
 
@@ -47,16 +61,33 @@ const SKELETON_CONNECTIONS = [
   [LANDMARK_INDEX.RIGHT_KNEE, LANDMARK_INDEX.RIGHT_ANKLE]
 ];
 
-const COLOR_GOOD = '#10b981'; // Neon Emerald
+const COLOR_GOOD = '#22c55e'; // Neon Lime/Emerald
 const COLOR_FAULT = '#ef4444'; // Crimson Red
 
-export const CameraView: React.FC = () => {
+interface CameraViewProps {
+  onBack?: () => void;
+}
+
+export const CameraView: React.FC<CameraViewProps> = ({ onBack }) => {
   const {
     selectedExercise,
     currentStage,
     handleTelemetry,
-    setIsTracking
+    setIsTracking,
+    sessionReps,
+    targetReps,
+    liveAngle,
+    activeFaults,
+    isGoodForm,
+    soundEnabled,
+    toggleSound,
+    toggleVoiceCoach,
+    recordRep,
+    resetSession,
+    setTargetReps
   } = useWorkout();
+
+  const config = EXERCISE_CATALOG[selectedExercise];
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -64,17 +95,24 @@ export const CameraView: React.FC = () => {
   const poseRef = useRef<any>(null);
   const animFrameRef = useRef<number | null>(null);
   const isRunningRef = useRef(false);
+  const isPausedRef = useRef(false);
   const prevLandmarksRef = useRef<LandmarkPoint[] | null>(null);
 
   // Viewport State Machine
   const [viewState, setViewState] = useState<ViewportState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isInFrame, setIsInFrame] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
   // Simulation controls
   const [simDirection, setSimDirection] = useState<1 | -1>(-1);
   const [simAngle, setSimAngle] = useState(160);
   const simDwellFramesRef = useRef(0);
+
+  // Synchronize pause ref
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   // Keep ref synchronized to avoid stale state in callback
   const selectedExerciseRef = useRef(selectedExercise);
@@ -93,6 +131,8 @@ export const CameraView: React.FC = () => {
   // Clean shutdown helper
   const stopCamera = useCallback(() => {
     isRunningRef.current = false;
+    isPausedRef.current = false;
+    setIsPaused(false);
     prevLandmarksRef.current = null;
     setIsInFrame(false);
     repEngine.reset(selectedExerciseRef.current);
@@ -127,7 +167,7 @@ export const CameraView: React.FC = () => {
     };
   }, [stopCamera]);
 
-  // Draw dynamic skeletal overlay with neon glow, offending joint highlight, and floating tooltip badges
+  // Draw dynamic skeletal overlay with neon glow
   const drawPoseFrame = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -141,7 +181,7 @@ export const CameraView: React.FC = () => {
 
       const faultyJointNames = new Set(formFaults.map((f) => f.joint.toLowerCase()));
 
-      // 1. Draw Vector Skeleton Lines with Neon Glow for all detected movements
+      // 1. Draw Vector Skeleton Lines
       SKELETON_CONNECTIONS.forEach(([idxA, idxB]) => {
         const ptA = landmarks[idxA];
         const ptB = landmarks[idxB];
@@ -175,16 +215,16 @@ export const CameraView: React.FC = () => {
         // Mirror x coordinates to match mirrored video (-scale-x-100)
         ctx.moveTo((1 - ptA.x) * width, ptA.y * height);
         ctx.lineTo((1 - ptB.x) * width, ptB.y * height);
-        ctx.lineWidth = isFaulty ? 6 : 4;
+        ctx.lineWidth = isFaulty ? 5 : 4;
         ctx.strokeStyle = strokeColor;
         ctx.lineCap = 'round';
         ctx.shadowColor = strokeColor;
-        ctx.shadowBlur = isFaulty ? 14 : 10;
+        ctx.shadowBlur = isFaulty ? 12 : 8;
         ctx.stroke();
         ctx.restore();
       });
 
-      // 2. Draw Landmark Joint Nodes with Radial Glow
+      // 2. Draw Landmark Joint Nodes
       const TRACKED_JOINTS = [
         { idx: LANDMARK_INDEX.LEFT_SHOULDER, name: 'shoulder' },
         { idx: LANDMARK_INDEX.RIGHT_SHOULDER, name: 'shoulder' },
@@ -210,55 +250,18 @@ export const CameraView: React.FC = () => {
         const nodeColor = isFaulty ? COLOR_FAULT : COLOR_GOOD;
 
         ctx.save();
-        // Outer glowing node
         ctx.beginPath();
-        ctx.arc(screenX, screenY, isFaulty ? 9 : 7, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, isFaulty ? 8 : 6, 0, Math.PI * 2);
         ctx.fillStyle = nodeColor;
         ctx.shadowColor = nodeColor;
-        ctx.shadowBlur = isFaulty ? 16 : 10;
+        ctx.shadowBlur = isFaulty ? 14 : 8;
         ctx.fill();
 
-        // Inner solid white core
         ctx.shadowBlur = 0;
         ctx.beginPath();
-        ctx.arc(screenX, screenY, 3, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, 2.5, 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
         ctx.fill();
-        ctx.restore();
-      });
-
-      // 3. Render Floating Contextual Tooltip Badges Near Offending Joints
-      formFaults.forEach((fault) => {
-        const screenX = (1 - fault.x) * width;
-        const screenY = fault.y * height;
-
-        ctx.save();
-        ctx.font = 'bold 13px Inter, -apple-system, sans-serif';
-        const text = `⚠️ ${fault.message}`;
-        const textMetrics = ctx.measureText(text);
-        const paddingX = 12;
-        const paddingY = 8;
-        const boxWidth = textMetrics.width + paddingX * 2;
-        const boxHeight = 32;
-
-        const boxX = Math.min(Math.max(screenX + 16, 12), width - boxWidth - 12);
-        const boxY = Math.min(Math.max(screenY - 16, 32), height - boxHeight - 12);
-
-        // Glowing red/amber badge shadow
-        ctx.shadowColor = 'rgba(239, 68, 68, 0.7)';
-        ctx.shadowBlur = 12;
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.96)';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
-        ctx.fill();
-        ctx.stroke();
-
-        // Badge label text
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(text, boxX + paddingX, boxY + 21);
         ctx.restore();
       });
     },
@@ -326,7 +329,7 @@ export const CameraView: React.FC = () => {
           });
 
           pose.onResults((results: any) => {
-            if (!isRunningRef.current) return;
+            if (!isRunningRef.current || isPausedRef.current) return;
             const canvas = canvasRef.current;
             if (!canvas) return;
             const ctx = canvas.getContext('2d');
@@ -336,7 +339,6 @@ export const CameraView: React.FC = () => {
             const height = canvas.height;
 
             if (results.poseLandmarks && results.poseLandmarks.length > 0) {
-              // 1. Exponential Moving Average (EMA) Landmark Smoothing
               const smoothed = smoothLandmarksEMA(
                 results.poseLandmarks,
                 prevLandmarksRef.current,
@@ -344,7 +346,6 @@ export const CameraView: React.FC = () => {
               );
               prevLandmarksRef.current = smoothed;
 
-              // 2. Exercise State Machine & Angle Calculation
               const evalResult = evaluateExerciseLandmarks(
                 selectedExerciseRef.current,
                 smoothed,
@@ -353,7 +354,6 @@ export const CameraView: React.FC = () => {
 
               setIsInFrame(evalResult.inFrame);
 
-              // 3. Dynamic Vector Skeleton & Tooltip Overlay
               drawPoseFrame(
                 ctx,
                 width,
@@ -381,10 +381,10 @@ export const CameraView: React.FC = () => {
       setViewState('active');
       setIsTracking(true);
 
-      // Frame Pump Loop
       const pumpFrame = async () => {
         if (!isRunningRef.current) return;
         if (
+          !isPausedRef.current &&
           videoRef.current &&
           videoRef.current.readyState >= 2 &&
           poseRef.current
@@ -397,7 +397,6 @@ export const CameraView: React.FC = () => {
             }
           }
         }
-        // Lifecycle guard: verify isRunningRef is STILL true after asynchronous pose processing
         if (isRunningRef.current) {
           animFrameRef.current = requestAnimationFrame(pumpFrame);
         } else {
@@ -419,7 +418,6 @@ export const CameraView: React.FC = () => {
     }
   };
 
-  // Start Interactive Simulation Mode
   const startSimulation = () => {
     stopCamera();
     repEngine.reset(selectedExercise);
@@ -428,10 +426,10 @@ export const CameraView: React.FC = () => {
     setIsTracking(true);
   };
 
-  // Synthetic Landmark Generator for Infallible Simulation Mode
+  // Synthetic Landmark Generator for Simulation Mode
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (viewState === 'simulating') {
+    if (viewState === 'simulating' && !isPaused) {
       interval = setInterval(() => {
         setSimAngle((prev) => {
           let next = prev;
@@ -439,7 +437,6 @@ export const CameraView: React.FC = () => {
 
           if (selectedExercise === 'squats' || selectedExercise === 'lunges') {
             if (simDirection === -1 && prev <= 84) {
-              // Dwell at bottom depth for 5 frames (~350ms >= 300ms)
               simDwellFramesRef.current++;
               if (simDwellFramesRef.current >= 5) {
                 newDirection = 1;
@@ -448,41 +445,32 @@ export const CameraView: React.FC = () => {
               next = 82;
             } else if (simDirection === 1 && prev >= 165) {
               newDirection = -1;
-              next = 165;
+              next = 164;
             } else {
-              next = prev + simDirection * 4;
+              next = prev + (simDirection === -1 ? -5 : 5);
             }
           } else if (selectedExercise === 'pushups') {
-            if (simDirection === -1 && prev <= 82) {
-              simDwellFramesRef.current++;
-              if (simDwellFramesRef.current >= 5) {
-                newDirection = 1;
-                simDwellFramesRef.current = 0;
-              }
-              next = 80;
-            } else if (simDirection === 1 && prev >= 162) {
+            if (simDirection === -1 && prev <= 80) {
+              newDirection = 1;
+              next = 82;
+            } else if (simDirection === 1 && prev >= 165) {
               newDirection = -1;
-              next = 162;
+              next = 163;
             } else {
-              next = prev + simDirection * 4;
+              next = prev + (simDirection === -1 ? -5 : 5);
             }
           } else if (selectedExercise === 'jumpingJacks') {
-            if (simDirection === 1 && prev >= 142) {
-              simDwellFramesRef.current++;
-              if (simDwellFramesRef.current >= 4) {
-                newDirection = -1;
-                simDwellFramesRef.current = 0;
-              }
-              next = 145;
-            } else if (simDirection === -1 && prev <= 38) {
+            if (simDirection === 1 && prev >= 115) {
+              newDirection = -1;
+              next = 113;
+            } else if (simDirection === -1 && prev <= 55) {
               newDirection = 1;
-              next = 38;
+              next = 58;
             } else {
-              next = prev + simDirection * 6;
+              next = prev + (simDirection === 1 ? 5 : -5);
             }
           } else {
-            // Plank: maintains rock-solid alignment (2-4° deviation)
-            next = 3;
+            next = 180;
           }
 
           setSimDirection(newDirection);
@@ -493,139 +481,73 @@ export const CameraView: React.FC = () => {
             if (ctx) {
               const width = canvas.width;
               const height = canvas.height;
-
-              const syntheticLandmarks: LandmarkPoint[] = [];
-              for (let i = 0; i <= 32; i++) {
-                syntheticLandmarks.push({ x: 0.5, y: 0.5, visibility: 0.95 });
-              }
+              const syntheticLandmarks: LandmarkPoint[] = Array(33).fill(null).map(() => ({ x: 0.5, y: 0.5, visibility: 0.95 }));
 
               if (selectedExercise === 'squats') {
-                // Standing: 165°, Deep Squat: 82°
-                const t = Math.max(0, Math.min(1, (165 - next) / (165 - 82)));
-                
-                // Head & Spine
-                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.44 - t * 0.03, y: 0.18 + t * 0.10, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.44 - t * 0.04, y: 0.28 + t * 0.10, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.52 - t * 0.04, y: 0.28 + t * 0.10, visibility: 0.95 };
-                
-                // Hips hinge down and back; knees track forward over feet
-                const hipX = 0.46 - t * 0.09;
-                const hipY = 0.48 + t * 0.19;
-                const kneeX = 0.48 + t * 0.07;
-                const kneeY = 0.69 + t * 0.02;
-                const ankleX = 0.48;
-                const ankleY = 0.90;
-
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: hipX, y: hipY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: hipX + 0.06, y: hipY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: kneeX, y: kneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: kneeX + 0.06, y: kneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: ankleX, y: ankleY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: ankleX + 0.06, y: ankleY, visibility: 0.95 };
-
-                // Arms out for counterbalance
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.56, y: 0.32 + t * 0.05, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.62, y: 0.32 + t * 0.05, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.66, y: 0.32 + t * 0.05, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.72, y: 0.32 + t * 0.05, visibility: 0.95 };
+                const normAngle = Math.max(80, Math.min(165, next));
+                const t = (165 - normAngle) / (165 - 80);
+                const hipY = 0.52 + t * 0.16;
+                const kneeY = 0.68 + t * 0.05;
+                const ankleY = 0.88;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.46, y: hipY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.54, y: hipY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.44 - t * 0.04, y: kneeY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.56 + t * 0.04, y: kneeY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.44, y: ankleY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.56, y: ankleY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.46, y: hipY - 0.22, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.54, y: hipY - 0.22, visibility: 0.95 };
               } else if (selectedExercise === 'pushups') {
-                // Lockout: 162°, Bottom chest press: 80°
-                const t = Math.max(0, Math.min(1, (162 - next) / (162 - 80)));
-                
-                // Hands planted firmly on floor
-                const wristX = 0.30;
-                const wristY = 0.68;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: wristX, y: wristY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: wristX + 0.06, y: wristY, visibility: 0.95 };
-
-                // Elbows bend back at 90°
-                const elbowX = 0.30 - t * 0.12;
-                const elbowY = 0.52 + t * 0.06;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: elbowX, y: elbowY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: elbowX + 0.06, y: elbowY, visibility: 0.95 };
-
-                // Torso & Shoulders descend parallel with rigid core
-                const shoulderX = 0.30;
-                const shoulderY = 0.38 + t * 0.18;
-                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.22, y: shoulderY - 0.05, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: shoulderX, y: shoulderY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: shoulderX + 0.06, y: shoulderY, visibility: 0.95 };
-
-                const hipX = 0.56;
-                const hipY = 0.46 + t * 0.16;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: hipX, y: hipY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: hipX + 0.06, y: hipY, visibility: 0.95 };
-
-                const ankleX = 0.84;
-                const ankleY = 0.64;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.70, y: 0.55 + t * 0.08, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.74, y: 0.55 + t * 0.08, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: ankleX, y: ankleY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: ankleX + 0.04, y: ankleY, visibility: 0.95 };
+                const normAngle = Math.max(80, Math.min(165, next));
+                const t = (165 - normAngle) / (165 - 80);
+                const chestY = 0.45 + t * 0.16;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.42, y: chestY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.58, y: chestY, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.36 - t * 0.06, y: chestY + 0.05, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.64 + t * 0.06, y: chestY + 0.05, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.38, y: 0.70, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.62, y: 0.70, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.44, y: chestY + 0.15, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.56, y: chestY + 0.15, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.45, y: 0.75, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.55, y: 0.75, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.45, y: 0.88, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.55, y: 0.88, visibility: 0.95 };
               } else if (selectedExercise === 'jumpingJacks') {
-                // Down: 38°, Up: 145°
-                const t = Math.max(0, Math.min(1, (next - 38) / (145 - 38)));
-                
-                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.50, y: 0.18, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.44, y: 0.30, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.56, y: 0.30, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.46, y: 0.52, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.54, y: 0.52, visibility: 0.95 };
-
-                // Arms sweep from sides (0.40, 0.58) to overhead (0.38, 0.14)
-                const leftWristX = 0.40 - t * 0.04;
-                const leftWristY = 0.58 - t * 0.44;
-                const rightWristX = 0.60 + t * 0.04;
-                const rightWristY = 0.58 - t * 0.44;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.42 - t * 0.10, y: 0.44 - t * 0.22, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.58 + t * 0.10, y: 0.44 - t * 0.22, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: leftWristX, y: leftWristY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: rightWristX, y: rightWristY, visibility: 0.95 };
-
-                // Feet jump from together to shoulder-width apart
-                const legSpread = t * 0.14;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.46 - legSpread * 0.6, y: 0.70, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.54 + legSpread * 0.6, y: 0.70, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.47 - legSpread, y: 0.88, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.53 + legSpread, y: 0.88, visibility: 0.95 };
+                const armRad = ((180 - next) * Math.PI) / 180;
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.46, y: 0.35, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.54, y: 0.35, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = {
+                  x: 0.46 - Math.cos(armRad) * 0.22,
+                  y: 0.35 - Math.sin(armRad) * 0.22,
+                  visibility: 0.95
+                };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = {
+                  x: 0.54 + Math.cos(armRad) * 0.22,
+                  y: 0.35 - Math.sin(armRad) * 0.22,
+                  visibility: 0.95
+                };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.47, y: 0.55, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.53, y: 0.55, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.43, y: 0.88, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.57, y: 0.88, visibility: 0.95 };
               } else if (selectedExercise === 'lunges') {
-                // Standing tall: 165°, Deep 90° lunge: 82°
-                const t = Math.max(0, Math.min(1, (165 - next) / (165 - 82)));
-                
-                syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.44, y: 0.20 + t * 0.08, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.44, y: 0.30 + t * 0.08, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.50, y: 0.30 + t * 0.08, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.44, y: 0.50 + t * 0.10, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.50, y: 0.50 + t * 0.10, visibility: 0.95 };
-
-                // Front leg steps forward into 90° flexion
-                const frontKneeX = 0.46 - t * 0.12;
-                const frontKneeY = 0.69 + t * 0.04;
-                const frontAnkleX = 0.46 - t * 0.12;
-                const frontAnkleY = 0.88;
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: frontKneeX, y: frontKneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: frontAnkleX, y: frontAnkleY, visibility: 0.95 };
-
-                // Back leg extends back with knee hovering off floor
-                const backKneeX = 0.52 + t * 0.08;
-                const backKneeY = 0.69 + t * 0.12;
-                const backAnkleX = 0.52 + t * 0.18;
-                const backAnkleY = 0.88;
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: backKneeX, y: backKneeY, visibility: 0.95 };
-                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: backAnkleX, y: backAnkleY, visibility: 0.95 };
+                const normAngle = Math.max(80, Math.min(165, next));
+                const t = (165 - normAngle) / (165 - 80);
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.48, y: 0.52 + t * 0.12, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.52, y: 0.52 + t * 0.12, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.46 - t * 0.12, y: 0.69 + t * 0.04, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.LEFT_ANKLE] = { x: 0.46 - t * 0.12, y: 0.88, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_KNEE] = { x: 0.52 + t * 0.08, y: 0.69 + t * 0.12, visibility: 0.95 };
+                syntheticLandmarks[LANDMARK_INDEX.RIGHT_ANKLE] = { x: 0.52 + t * 0.18, y: 0.88, visibility: 0.95 };
               } else {
-                // Rock-Solid Forearm Plank: straight bodyline from shoulder to ankle
                 syntheticLandmarks[LANDMARK_INDEX.NOSE] = { x: 0.22, y: 0.44, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_SHOULDER] = { x: 0.30, y: 0.48, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.RIGHT_SHOULDER] = { x: 0.34, y: 0.48, visibility: 0.95 };
-                
-                // Forearms supporting weight
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_ELBOW] = { x: 0.30, y: 0.64, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.RIGHT_ELBOW] = { x: 0.34, y: 0.64, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_WRIST] = { x: 0.38, y: 0.64, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.RIGHT_WRIST] = { x: 0.42, y: 0.64, visibility: 0.95 };
-
-                // Rigid plank core
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_HIP] = { x: 0.56, y: 0.52, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.RIGHT_HIP] = { x: 0.60, y: 0.52, visibility: 0.95 };
                 syntheticLandmarks[LANDMARK_INDEX.LEFT_KNEE] = { x: 0.70, y: 0.54, visibility: 0.95 };
@@ -658,185 +580,442 @@ export const CameraView: React.FC = () => {
       }, 70);
     }
     return () => clearInterval(interval);
-  }, [viewState, simDirection, selectedExercise, handleTelemetry, drawPoseFrame]);
+  }, [viewState, isPaused, simDirection, selectedExercise, handleTelemetry, drawPoseFrame]);
+
+  // Plank Alignment calculations
+  const plankDeviationThreshold = config.formThresholds?.maxDeviation ?? 15;
+  const plankMetrics = getPlankAlignmentMetrics(liveAngle, plankDeviationThreshold);
+
+  // Form Feedback Presentation
+  const isPlank = config.isHoldExercise;
+  const isComplete = sessionReps >= targetReps && targetReps > 0;
+
+  // Toggle Pause
+  const togglePause = () => {
+    setIsPaused((prev) => !prev);
+  };
+
+  // Stop workout session
+  const handleStop = () => {
+    stopCamera();
+    setViewState('idle');
+    if (onBack) onBack();
+  };
 
   return (
-    <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] bg-[#090d16] rounded-3xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col items-center justify-center">
-      
-      {/* 1. Underlying Mirrored Video Feed */}
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        className={`absolute inset-0 w-full h-full object-cover -scale-x-100 transition-opacity duration-500 ${
-          viewState === 'active' ? 'opacity-90' : 'opacity-0 pointer-events-none'
-        }`}
-      />
+    <div className="flex flex-col space-y-4 w-full">
+      {/* 1. TOP BAR: Back + Exercise Name + Set/Exercise Info */}
+      <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-surface border border-border-subtle shadow-md">
+        <div className="flex items-center space-x-3 min-w-0">
+          {onBack && (
+            <button
+              onClick={handleStop}
+              aria-label="Back to workout discovery"
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border-subtle text-text-secondary hover:text-text-primary flex items-center space-x-1.5 transition-all text-xs font-bold shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Back</span>
+            </button>
+          )}
 
-      {/* 2. Skeletal Canvas Overlay */}
-      <canvas
-        ref={canvasRef}
-        width={1280}
-        height={720}
-        className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-10 transition-opacity duration-300 ${
-          viewState === 'active' || viewState === 'simulating' ? 'opacity-100' : 'opacity-0'
-        }`}
-      />
-
-      {/* Step back to fit in frame overlay when user is out of frame */}
-      {viewState === 'active' && !isInFrame && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/45 backdrop-blur-[2px] pointer-events-none animate-in fade-in duration-200">
-          <div className="flex items-center space-x-2.5 px-5 py-3 rounded-2xl bg-amber-500 text-black font-extrabold text-sm shadow-2xl shadow-amber-500/30 border border-amber-300 animate-pulse">
-            <UserX className="w-5 h-5 stroke-[2.5]" />
-            <span>Step back to fit in frame</span>
-          </div>
-          <p className="text-xs text-amber-200 font-medium mt-2 bg-slate-900/90 px-3 py-1 rounded-full border border-amber-500/20">
-            Full body &amp; active joints must be visible in frame
-          </p>
-        </div>
-      )}
-
-      {/* 3. Sleek Minimalist Idle State */}
-      {viewState === 'idle' && (
-        <div className="relative z-20 flex flex-col items-center text-center p-6 max-w-md mx-auto animate-in fade-in zoom-in-95 duration-300">
-          <div className="relative mb-5 group">
-            <div className="w-20 h-20 rounded-3xl bg-slate-900/90 border border-emerald-500/30 flex items-center justify-center shadow-xl shadow-emerald-500/10 group-hover:scale-105 transition-all">
-              <Camera className="w-9 h-9 text-emerald-400 stroke-[1.75]" />
+          <div className="min-w-0">
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-primary-bright shadow-[0_0_8px_rgba(74,123,255,0.7)]" />
+              <h1 className="text-base sm:text-xl font-black text-text-primary tracking-tight truncate">
+                {config.name}
+              </h1>
             </div>
-            <div className="absolute -inset-1 rounded-3xl bg-emerald-500/20 blur-xl opacity-60 pointer-events-none" />
-          </div>
-
-          <h3 className="text-xl font-black text-white tracking-tight mb-1.5">
-            AI Pose Detection Ready
-          </h3>
-          <p className="text-xs text-slate-400 mb-6 leading-relaxed">
-            Client-side MediaPipe biometric tracking. 100% on-device inference with zero latency and complete dorm privacy.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full">
-            <button
-              onClick={startCamera}
-              className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-xs tracking-wider uppercase flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/25 transition-all active:scale-[0.98]"
-            >
-              <Camera className="w-4 h-4 stroke-[2.5]" />
-              <span>Enable Camera</span>
-            </button>
-
-            <button
-              onClick={startSimulation}
-              className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-white font-semibold text-xs flex items-center justify-center space-x-2 transition-all active:scale-[0.98]"
-            >
-              <Play className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
-              <span>Auto Simulate</span>
-            </button>
+            <p className="text-xs text-text-secondary truncate mt-0.5">
+              Set 1 • Target: <span className="font-bold text-text-primary">{targetReps} {config.metricUnit}</span> • {config.targetMuscles}
+            </p>
           </div>
         </div>
-      )}
 
-      {/* 4. Requesting Camera Access State */}
-      {viewState === 'requesting' && (
-        <div className="relative z-20 flex flex-col items-center text-center p-6 animate-in fade-in duration-200">
-          <Loader2 className="w-10 h-10 text-emerald-400 animate-spin mb-3" />
-          <p className="text-sm font-bold text-white">Accessing Camera Stream...</p>
-          <p className="text-xs text-slate-400 mt-1">Please allow camera permissions if prompted.</p>
+        {/* Live Audio & Reset Shortcuts */}
+        <div className="flex items-center space-x-2 shrink-0">
+          <button
+            onClick={() => {
+              toggleSound();
+              toggleVoiceCoach();
+            }}
+            title={soundEnabled ? 'Mute Voice & Audio' : 'Unmute Voice & Audio'}
+            className={`p-2.5 rounded-xl border transition-all ${
+              soundEnabled
+                ? 'bg-primary/10 border-primary/30 text-primary-bright hover:bg-primary/20'
+                : 'bg-surface-elevated border-border-subtle text-text-muted hover:text-text-primary'
+            }`}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+
+          <button
+            onClick={resetSession}
+            title="Reset Current Reps"
+            className="p-2.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border-subtle text-text-muted hover:text-text-primary transition-all"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
         </div>
-      )}
+      </div>
 
-      {/* 5. Error & Fallback Recovery State */}
-      {viewState === 'error' && (
-        <div className="relative z-20 flex flex-col items-center text-center p-6 max-w-sm mx-auto animate-in fade-in duration-200">
-          <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-3">
-            <AlertCircle className="w-7 h-7" />
-          </div>
-          <p className="text-sm font-bold text-white mb-1">Camera Notice</p>
-          <p className="text-xs text-slate-400 mb-5 leading-relaxed">{errorMessage}</p>
+      {/* 2. DOMINANT CAMERA VIEWPORT WITH HUD OVERLAYS */}
+      <div className="relative w-full aspect-[4/3] sm:aspect-[16/10] md:min-h-[520px] bg-[#080F19] rounded-3xl overflow-hidden border border-border-subtle shadow-2xl flex flex-col items-center justify-center">
+        
+        {/* Underlying Mirrored Video Feed */}
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          className={`absolute inset-0 w-full h-full object-cover -scale-x-100 transition-opacity duration-500 ${
+            viewState === 'active' ? 'opacity-90' : 'opacity-0 pointer-events-none'
+          }`}
+        />
 
-          <div className="flex items-center space-x-2 w-full">
-            <button
-              onClick={startCamera}
-              className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white flex items-center justify-center space-x-1.5 transition-all"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Retry</span>
-            </button>
-            <button
-              onClick={startSimulation}
-              className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold flex items-center justify-center space-x-1.5 transition-all"
-            >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Use Simulator</span>
-            </button>
-          </div>
-        </div>
-      )}
+        {/* Skeletal Canvas Overlay */}
+        <canvas
+          ref={canvasRef}
+          width={1280}
+          height={720}
+          className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-10 transition-opacity duration-300 ${
+            viewState === 'active' || viewState === 'simulating' ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
 
-      {/* 6. Active Viewport HUD & Controls */}
-      {(viewState === 'active' || viewState === 'simulating') && (
-        <>
-          {/* Top HUD Bar */}
-          <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-            
-            {/* Tracking Status Pill */}
-            <div className="pointer-events-auto flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-800 text-xs font-semibold">
-              <span className={`w-2 h-2 rounded-full ${viewState === 'simulating' ? 'bg-cyan-400 animate-pulse' : 'bg-emerald-400 animate-ping'}`} />
-              <span className="text-white">
-                {viewState === 'simulating' ? 'Interactive Simulation' : 'Live Pose Tracking'}
+        {/* FLOATING HUD OVERLAYS (Stage + Reps) */}
+        {(viewState === 'active' || viewState === 'simulating') && (
+          <div className="absolute top-4 left-4 z-20 flex flex-col sm:flex-row gap-2.5 pointer-events-none">
+            {/* Stage Card */}
+            <div className="px-4 py-2 rounded-2xl bg-surface/85 backdrop-blur-md border border-border-subtle shadow-xl flex flex-col min-w-[90px]">
+              <span className="text-[10px] uppercase tracking-wider font-extrabold text-text-muted">
+                Stage
               </span>
-              {viewState === 'active' && (
-                <span className="text-[10px] text-slate-400 pl-1 border-l border-slate-800">
-                  {isInFrame ? (
-                    <span className="text-emerald-400 flex items-center gap-1 font-semibold">
-                      <UserCheck className="w-3 h-3 inline" /> In Frame (&gt;65%)
-                    </span>
-                  ) : (
-                    <span className="text-amber-400 flex items-center gap-1 font-bold animate-pulse">
-                      <UserX className="w-3 h-3 inline" /> Step back to fit in frame
-                    </span>
-                  )}
+              <span className="text-xl sm:text-2xl font-black text-text-primary capitalize leading-tight">
+                {isPlank ? (plankMetrics.isGoodAlignment ? 'Hold' : 'Adjust') : currentStage}
+              </span>
+            </div>
+
+            {/* Reps / Hold Time Card */}
+            <div className="px-4 py-2 rounded-2xl bg-surface/85 backdrop-blur-md border border-border-subtle shadow-xl flex flex-col min-w-[110px]">
+              <span className="text-[10px] uppercase tracking-wider font-extrabold text-text-muted">
+                {isPlank ? 'Hold Time' : 'Reps'}
+              </span>
+              <div className="flex items-baseline space-x-1">
+                <span className="text-xl sm:text-2xl font-black text-primary-bright leading-tight">
+                  {sessionReps}
                 </span>
-              )}
-            </div>
-
-            {/* Viewport Control Buttons */}
-            <div className="pointer-events-auto flex items-center space-x-2">
-              <button
-                onClick={() => {
-                  stopCamera();
-                  setViewState('idle');
-                }}
-                className="px-3 py-1.5 rounded-xl bg-slate-950/80 hover:bg-rose-500/20 border border-slate-800 hover:border-rose-500/40 text-xs font-semibold text-slate-300 hover:text-rose-400 flex items-center space-x-1.5 transition-all"
-              >
-                <CameraOff className="w-3.5 h-3.5" />
-                <span>Stop</span>
-              </button>
-            </div>
-
-          </div>
-
-          {/* Simulation Fine Control Slider */}
-          {viewState === 'simulating' && (
-            <div className="absolute bottom-4 left-4 right-4 z-20 p-3 rounded-2xl bg-slate-950/85 backdrop-blur-md border border-slate-800/80 flex items-center justify-between gap-3 animate-in fade-in">
-              <span className="text-[11px] font-semibold text-cyan-400 flex items-center gap-1 shrink-0">
-                <Sliders className="w-3.5 h-3.5" />
-                Auto-Cycling Kinematics:
-              </span>
-              <div className="flex-1 flex items-center space-x-2">
-                <span className="text-[10px] text-slate-400">Flexion</span>
-                <input
-                  type="range"
-                  min="60"
-                  max="170"
-                  value={simAngle}
-                  onChange={(e) => setSimAngle(Number(e.target.value))}
-                  className="w-full accent-emerald-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
-                />
-                <span className="text-xs font-bold text-white w-10 text-right">{simAngle}°</span>
+                <span className="text-xs font-bold text-text-muted">
+                  / {targetReps} {isPlank ? 's' : ''}
+                </span>
               </div>
             </div>
-          )}
-        </>
-      )}
+          </div>
+        )}
 
+        {/* TOP RIGHT TRACKING STATUS PILL */}
+        {(viewState === 'active' || viewState === 'simulating') && (
+          <div className="absolute top-4 right-4 z-20 pointer-events-none flex items-center space-x-2">
+            <div className="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-surface/85 backdrop-blur-md border border-border-subtle text-xs font-semibold shadow-xl">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  viewState === 'simulating'
+                    ? 'bg-accent animate-pulse'
+                    : isInFrame
+                    ? 'bg-success animate-ping'
+                    : 'bg-warning animate-pulse'
+                }`}
+              />
+              <span className="text-text-primary text-[11px] font-bold">
+                {viewState === 'simulating'
+                  ? 'Simulator Active'
+                  : isInFrame
+                  ? 'Good Tracking'
+                  : 'Adjust Position'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* 8 TRACKING PRESENTATION STATES */}
+
+        {/* State 1: Camera Permission / Onboarding (Idle) */}
+        {viewState === 'idle' && (
+          <div className="relative z-20 flex flex-col items-center text-center p-6 max-w-md mx-auto animate-in fade-in zoom-in-95 duration-300">
+            <div className="relative mb-5 group">
+              <div className="w-20 h-20 rounded-3xl bg-surface-elevated border border-primary/40 flex items-center justify-center shadow-xl shadow-primary/10 group-hover:scale-105 transition-all">
+                <Camera className="w-9 h-9 text-primary-bright stroke-[1.75]" />
+              </div>
+              <div className="absolute -inset-1 rounded-3xl bg-primary/20 blur-xl opacity-60 pointer-events-none" />
+            </div>
+
+            <h2 className="text-xl font-black text-text-primary tracking-tight mb-1.5">
+              Ready for AI Coaching
+            </h2>
+            <p className="text-xs text-text-secondary mb-6 leading-relaxed">
+              Camera access is analyzed 100% on your device with zero video storage or streaming. Maintain dorm room privacy while getting real-time form guidance.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={startCamera}
+                className="w-full sm:flex-1 py-3.5 font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 rounded-2xl"
+              >
+                <Camera className="w-4 h-4 stroke-[2.5]" />
+                <span>Enable Camera</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={startSimulation}
+                className="w-full sm:flex-1 py-3.5 font-bold text-xs flex items-center justify-center space-x-2 rounded-2xl"
+              >
+                <Play className="w-3.5 h-3.5 text-accent fill-accent" />
+                <span>Auto Simulate</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* State 2: Camera Loading */}
+        {viewState === 'requesting' && (
+          <div className="relative z-20 flex flex-col items-center text-center p-6 animate-in fade-in duration-200">
+            <Loader2 className="w-12 h-12 text-primary-bright animate-spin mb-3" />
+            <h3 className="text-base font-black text-text-primary">Connecting Camera...</h3>
+            <p className="text-xs text-text-secondary mt-1">
+              Initializing on-device biometric posture tracking.
+            </p>
+          </div>
+        )}
+
+        {/* State 5: Low-Confidence Tracking (Poor visibility banner with actionable language) */}
+        {viewState === 'active' && !isInFrame && (
+          <div className="absolute inset-x-4 top-20 z-20 mx-auto max-w-md p-4 rounded-2xl bg-warning/95 backdrop-blur-md text-black shadow-2xl border border-amber-300 animate-in fade-in duration-200 pointer-events-none">
+            <div className="flex items-center space-x-2 font-black text-sm">
+              <AlertTriangle className="w-5 h-5 text-black stroke-[2.5] shrink-0" />
+              <span>Camera Not Tracking Well</span>
+            </div>
+            <p className="text-xs font-semibold text-black/90 mt-1 leading-snug">
+              Try repositioning the camera or move into better lighting. Make sure your full body and active joints are in clear view.
+            </p>
+          </div>
+        )}
+
+        {/* State 6 & 8: Camera Unavailable / Error */}
+        {viewState === 'error' && (
+          <div className="relative z-20 flex flex-col items-center text-center p-6 max-w-sm mx-auto animate-in fade-in duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-danger/10 border border-danger/30 flex items-center justify-center text-danger mb-3">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-black text-text-primary mb-1">Camera Unavailable</h3>
+            <p className="text-xs text-text-secondary mb-5 leading-relaxed">
+              {errorMessage || 'Unable to access your webcam. Check browser permissions or practice with the Interactive Simulator.'}
+            </p>
+
+            <div className="flex items-center space-x-2 w-full">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={startCamera}
+                className="flex-1 py-2.5 font-bold text-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                <span>Retry</span>
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={startSimulation}
+                className="flex-1 py-2.5 font-bold text-xs"
+              >
+                <Sliders className="w-3.5 h-3.5 mr-1" />
+                <span>Use Simulator</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Paused Overlay */}
+        {isPaused && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="px-5 py-3 rounded-2xl bg-surface border border-border-subtle shadow-2xl flex flex-col items-center text-center">
+              <Pause className="w-8 h-8 text-primary-bright mb-2" />
+              <p className="text-base font-black text-text-primary">Session Paused</p>
+              <p className="text-xs text-text-secondary mt-0.5 mb-3">Camera is active. Tap resume when ready.</p>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={togglePause}
+                className="px-6 py-2.5 font-bold text-xs"
+              >
+                <Play className="w-4 h-4 mr-1.5" />
+                <span>Resume Tracking</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* State 7: Exercise Complete Celebration Overlay */}
+        {isComplete && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-black/75 backdrop-blur-md animate-in fade-in zoom-in-95">
+            <div className="w-16 h-16 rounded-3xl bg-success/20 border border-success/40 flex items-center justify-center text-success mb-3 shadow-xl shadow-success/20 animate-bounce">
+              <Trophy className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-black text-white tracking-tight">Set Complete! 🎉</h3>
+            <p className="text-sm text-text-secondary mt-1 text-center max-w-xs">
+              Great work! You reached your goal of {targetReps} {config.metricUnit} with strong biomechanics.
+            </p>
+
+            <div className="flex items-center gap-3 mt-5">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setTargetReps(targetReps + config.defaultTarget)}
+                className="font-bold text-xs px-5 py-2.5"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                <span>Next Set (+{config.defaultTarget})</span>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleStop}
+                className="font-bold text-xs px-5 py-2.5"
+              >
+                <span>Finish Session</span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Simulation Slider Control Bar */}
+        {viewState === 'simulating' && (
+          <div className="absolute bottom-4 left-4 right-4 z-20 p-3 rounded-2xl bg-surface/90 backdrop-blur-md border border-border-subtle flex items-center justify-between gap-3 animate-in fade-in">
+            <span className="text-[11px] font-bold text-accent flex items-center gap-1 shrink-0">
+              <Sliders className="w-3.5 h-3.5" />
+              Simulator Cycle:
+            </span>
+            <div className="flex-1 flex items-center space-x-2">
+              <input
+                type="range"
+                min="60"
+                max="170"
+                value={simAngle}
+                onChange={(e) => setSimAngle(Number(e.target.value))}
+                className="w-full accent-primary-bright cursor-pointer h-1.5 bg-surface-elevated rounded-lg"
+              />
+              <span className="text-xs font-bold text-text-primary w-10 text-right">{simAngle}°</span>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* 3. BOTTOM FEEDBACK PANEL (GOOD FORM / GOOD ALIGNMENT / ADJUST POSITION) */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border-subtle shadow-lg">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start sm:items-center space-x-3">
+            {/* Status Pill Badge */}
+            {isPlank ? (
+              plankMetrics.isGoodAlignment ? (
+                <div className="px-3 py-1.5 rounded-xl bg-success/15 border border-success/40 text-success text-xs font-black tracking-wide flex items-center space-x-1.5 shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>GOOD ALIGNMENT</span>
+                </div>
+              ) : (
+                <div className="px-3 py-1.5 rounded-xl bg-warning/15 border border-warning/40 text-warning text-xs font-black tracking-wide flex items-center space-x-1.5 shrink-0 animate-pulse">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>ADJUST POSITION</span>
+                </div>
+              )
+            ) : isGoodForm || activeFaults.length === 0 ? (
+              <div className="px-3 py-1.5 rounded-xl bg-success/15 border border-success/40 text-success text-xs font-black tracking-wide flex items-center space-x-1.5 shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>GOOD FORM</span>
+              </div>
+            ) : (
+              <div className="px-3 py-1.5 rounded-xl bg-danger/15 border border-danger/40 text-danger text-xs font-black tracking-wide flex items-center space-x-1.5 shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+                <span>ADJUST FORM</span>
+              </div>
+            )}
+
+            {/* Direct Feedback Guidance Sentence */}
+            <p className="text-xs sm:text-sm font-semibold text-text-primary leading-snug">
+              {isPlank
+                ? plankMetrics.isGoodAlignment
+                  ? 'Shoulders, hips, and ankles are in a straight horizontal line.'
+                  : plankMetrics.deviation > 15
+                  ? 'Bring your hips into a straight horizontal line to protect your lower back.'
+                  : 'Hold steady and breathe smoothly throughout the hold.'
+                : activeFaults.length > 0
+                ? activeFaults[0].message
+                : selectedExercise === 'squats'
+                ? 'Keep your back straight and knees aligned over your toes.'
+                : selectedExercise === 'pushups'
+                ? 'Maintain a rigid spine line and press firmly through your palms.'
+                : selectedExercise === 'lunges'
+                ? 'Keep your torso upright and front knee directly above your ankle.'
+                : 'Land softly on the balls of your feet and maintain a steady rhythm.'}
+            </p>
+          </div>
+
+          {/* Quick Manual Rep Increment */}
+          <button
+            onClick={() => recordRep(isPlank ? 5 : 1)}
+            className="self-end sm:self-center px-3 py-1.5 rounded-xl bg-surface-elevated hover:bg-surface-hover border border-border-subtle text-xs font-bold text-text-secondary hover:text-text-primary flex items-center space-x-1 transition-all shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isPlank ? '+5s Hold' : '+1 Manual Rep'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 4. CONTROLS BAR WITH LARGE TOUCH TARGETS */}
+      <div className="grid grid-cols-3 gap-3 p-2.5 sm:p-3 rounded-2xl bg-surface border border-border-subtle shadow-md">
+        {/* Pause / Resume */}
+        <Button
+          size="lg"
+          variant={isPaused ? 'primary' : 'outline'}
+          onClick={togglePause}
+          disabled={viewState !== 'active' && viewState !== 'simulating'}
+          className="min-h-[48px] py-3 text-xs sm:text-sm font-black flex items-center justify-center space-x-2 rounded-xl"
+        >
+          {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+          <span>{isPaused ? 'Resume' : 'Pause'}</span>
+        </Button>
+
+        {/* Stop Workout */}
+        <Button
+          size="lg"
+          variant="danger"
+          onClick={handleStop}
+          className="min-h-[48px] py-3 text-xs sm:text-sm font-black flex items-center justify-center space-x-2 rounded-xl"
+        >
+          <Square className="w-5 h-5" />
+          <span>Stop</span>
+        </Button>
+
+        {/* Sound / Mute Toggle */}
+        <Button
+          size="lg"
+          variant="outline"
+          onClick={() => {
+            toggleSound();
+            toggleVoiceCoach();
+          }}
+          className="min-h-[48px] py-3 text-xs sm:text-sm font-bold flex items-center justify-center space-x-2 rounded-xl"
+        >
+          {soundEnabled ? (
+            <Volume2 className="w-5 h-5 text-primary-bright" />
+          ) : (
+            <VolumeX className="w-5 h-5 text-text-muted" />
+          )}
+          <span>{soundEnabled ? 'Audio On' : 'Muted'}</span>
+        </Button>
+      </div>
     </div>
   );
 };
