@@ -1,4 +1,4 @@
-import type { ExerciseConfig, ExerciseKey } from '../types/fitness.ts';
+import type { ExerciseConfig, ExerciseConstraintMetadata, ExerciseKey } from '../types/fitness.ts';
 import { LANDMARK_INDEX } from '../types/fitness.ts';
 
 /**
@@ -372,4 +372,95 @@ export const resolveExerciseConfig = (
   }
 
   return resolved;
+};
+
+/**
+ * EXERCISE_CONSTRAINTS defines the physical, spatial, acoustic, equipment,
+ * and temporal parameters of each exercise in FitMitra for the adaptive recommendation engine.
+ */
+export const EXERCISE_CONSTRAINTS: Record<ExerciseKey, ExerciseConstraintMetadata> = {
+  squats: {
+    id: 'squats',
+    name: 'Bodyweight Squats',
+    category: 'Lower Body',
+    targetMuscles: 'Quads, Glutes & Core',
+    equipment: ['none'],
+    optionalEquipment: ['chair'],
+    space: 'tiny', // Can be performed in a 2x2 ft bedside footprint
+    noise: 'silent', // Zero ground impact, 100% silent
+    difficulty: 'beginner',
+    primaryGoals: ['strength', 'fat_loss', 'toning'],
+    secondaryGoals: ['athletic', 'wellness'],
+    secondsPerSet: 45,
+    defaultSets: 3,
+    defaultReps: 15,
+    metricUnit: 'reps'
+  },
+  pushups: {
+    id: 'pushups',
+    name: 'Floor / Desk Push-ups',
+    category: 'Upper Body',
+    targetMuscles: 'Chest, Triceps & Anterior Deltoids',
+    equipment: ['none'],
+    optionalEquipment: ['mat', 'chair'],
+    space: 'small', // Requires horizontal prone floor/mat length
+    noise: 'silent', // Zero ground impact, 100% silent
+    difficulty: 'intermediate',
+    primaryGoals: ['strength', 'posture', 'toning'],
+    secondaryGoals: ['athletic', 'wellness'],
+    secondsPerSet: 45,
+    defaultSets: 3,
+    defaultReps: 12,
+    metricUnit: 'reps'
+  },
+  jumpingJacks: {
+    id: 'jumpingJacks',
+    name: 'Cardio Jumping Jacks',
+    category: 'Cardio Burn',
+    targetMuscles: 'Cardiovascular, Calves & Shoulders',
+    equipment: ['none'],
+    space: 'large', // Requires 2x2m clearance for limb spread
+    noise: 'high', // Jumping and repeated landing
+    difficulty: 'beginner',
+    primaryGoals: ['cardio', 'fat_loss', 'athletic'],
+    secondaryGoals: ['wellness'],
+    secondsPerSet: 40,
+    defaultSets: 3,
+    defaultReps: 25,
+    metricUnit: 'reps'
+  },
+  lunges: {
+    id: 'lunges',
+    name: 'Alternating Bodyweight Lunges',
+    category: 'Lower Body',
+    targetMuscles: 'Quads, Hamstrings & Calves',
+    equipment: ['none'],
+    optionalEquipment: ['mat'],
+    space: 'medium', // Requires 2 paces forward/backward stride
+    noise: 'low', // Soft step landings, low noise
+    difficulty: 'intermediate',
+    primaryGoals: ['strength', 'mobility', 'athletic'],
+    secondaryGoals: ['toning', 'wellness'],
+    secondsPerSet: 50,
+    defaultSets: 3,
+    defaultReps: 16,
+    metricUnit: 'reps'
+  },
+  plank: {
+    id: 'plank',
+    name: 'Isometric Forearm Plank',
+    category: 'Core Stability',
+    targetMuscles: 'Core, Transverse Abdominis & Glutes',
+    equipment: ['none'],
+    optionalEquipment: ['mat'],
+    space: 'small', // Requires prone floor length
+    noise: 'silent', // Static hold, zero noise
+    difficulty: 'intermediate',
+    primaryGoals: ['posture', 'strength', 'wellness'],
+    secondaryGoals: ['toning'],
+    secondsPerSet: 45,
+    defaultSets: 3,
+    defaultReps: 30, // 30 seconds
+    metricUnit: 'seconds'
+  }
 };

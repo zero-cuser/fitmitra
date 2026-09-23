@@ -130,7 +130,7 @@ export default function Home() {
                   <WorkoutDiscovery onStartWorkout={() => setWorkoutMode('coach')} />
 
                   {/* AI Space & Equipment Workout Advisor */}
-                  <AIWorkoutAdvisor />
+                  <AIWorkoutAdvisor onStartWorkout={() => setWorkoutMode('coach')} />
 
                   {/* Exam Stress & Breath Sanctuary inside workout */}
                   <div className="pt-4 border-t border-border-subtle">

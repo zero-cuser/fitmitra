@@ -15,6 +15,80 @@ export type MovementDirection =
   | 'increasing_abduction' // Low angle start/closed -> high angle overhead abduction -> low angle closed (jumping jacks)
   | 'isometric_hold'; // Continuous hold targeting straight collinear alignment (plank)
 
+export type EquipmentType = 'none' | 'mat' | 'chair' | 'dumbbells' | 'bands';
+
+export type SpaceRequirement = 'tiny' | 'small' | 'medium' | 'large';
+
+export type NoiseRating = 'silent' | 'low' | 'moderate' | 'high';
+
+export type ExerciseDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export type EnergyLevel = 'low' | 'moderate' | 'high';
+
+export interface ExerciseConstraintMetadata {
+  id: ExerciseKey;
+  name: string;
+  category: string;
+  targetMuscles: string;
+  equipment: EquipmentType[];
+  optionalEquipment?: EquipmentType[];
+  space: SpaceRequirement;
+  noise: NoiseRating;
+  difficulty: ExerciseDifficulty;
+  primaryGoals: FitnessGoal[];
+  secondaryGoals: FitnessGoal[];
+  secondsPerSet: number;
+  defaultSets: number;
+  defaultReps: number;
+  metricUnit: 'reps' | 'seconds';
+}
+
+export interface WorkoutConstraints {
+  durationMinutes: number;
+  space: SpaceRequirement;
+  equipment: EquipmentType[];
+  noiseTolerance: NoiseRating;
+  goal: FitnessGoal;
+  difficulty: ExerciseDifficulty;
+  excludedExerciseIds?: ExerciseKey[];
+  preferredExerciseIds?: ExerciseKey[];
+  energyLevel?: EnergyLevel;
+}
+
+export interface RecommendedRoutineItem {
+  exerciseKey: ExerciseKey;
+  name: string;
+  sets: number;
+  repsOrSeconds: number;
+  unit: 'reps' | 'seconds';
+  estMinutes: number;
+  reason: string;
+}
+
+export interface RelaxationOption {
+  field: keyof WorkoutConstraints;
+  label: string;
+  suggestedValue: any;
+}
+
+export type RecommendationResult =
+  | {
+      success: true;
+      title: string;
+      totalDurationMinutes: number;
+      space: SpaceRequirement;
+      noise: NoiseRating;
+      difficulty: ExerciseDifficulty;
+      equipmentNeeded: EquipmentType[];
+      items: RecommendedRoutineItem[];
+      explanation: string[];
+    }
+  | {
+      success: false;
+      blockingConstraints: string[];
+      relaxationOptions: RelaxationOption[];
+    };
+
 export interface RepTransitionThresholds {
   /** The angle to confirm start / return / lockout position */
   upThreshold: number;
