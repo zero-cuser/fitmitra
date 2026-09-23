@@ -6,8 +6,9 @@ import { Sidebar, NavTabId } from '@/components/Shell/Sidebar';
 import { MobileTopBar } from '@/components/Shell/MobileTopBar';
 import { MobileBottomNav } from '@/components/Shell/MobileBottomNav';
 import { WorkoutDiscovery } from '@/components/WorkoutSelection/WorkoutDiscovery';
+import { WorkoutCompletion, WorkoutSummary } from '@/components/WorkoutCompletion/WorkoutCompletion';
+import { ProgressDashboard } from '@/components/Progress/ProgressDashboard';
 import { StatsPanel } from '@/components/AIPoseCoach/StatsPanel';
-import { WeeklyCalorieChart } from '@/components/Progress/WeeklyCalorieChart';
 import { NutritionTracker } from '@/components/MessNutrition/NutritionTracker';
 import { FriendsHub } from '@/components/Friends/FriendsHub';
 import { ExamStressReset } from '@/components/Wellness/ExamStressReset';
@@ -24,7 +25,8 @@ import {
   TrendingUp,
   Users,
   Compass,
-  Video
+  Video,
+  CheckCircle2
 } from 'lucide-react';
 
 // Isolate CameraView from SSR to prevent hydration issues with browser APIs
@@ -44,7 +46,8 @@ const CameraView = dynamic(
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<NavTabId>('home');
-  const [workoutMode, setWorkoutMode] = useState<'discovery' | 'coach'>('discovery');
+  const [workoutMode, setWorkoutMode] = useState<'discovery' | 'coach' | 'completion'>('discovery');
+  const [completionSummary, setCompletionSummary] = useState<WorkoutSummary | null>(null);
 
   const handleNavigateFromHome = (tab: NavTabId) => {
     setActiveTab(tab);
@@ -68,54 +71,56 @@ export default function Home() {
           {/* TAB 1: HOME DASHBOARD */}
           {activeTab === 'home' && <HomeDashboard onNavigate={handleNavigateFromHome} />}
 
-          {/* TAB 2: WORKOUT (Discovery & Immersive AI Pose Coach) */}
+          {/* TAB 2: WORKOUT (Discovery, Immersive AI Pose Coach, & Completion) */}
           {activeTab === 'workout' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              {/* Header with Mode Switcher */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
-                <SectionHeader
-                  title={workoutMode === 'discovery' ? 'AI Workout Studio' : 'AI Biometric Pose Coach'}
-                  subtitle={
-                    workoutMode === 'discovery'
-                      ? 'Discover campus-friendly routines and launch 100% on-device posture tracking.'
-                      : 'Real-time joint vector kinematics with instant speech feedback and dorm privacy.'
-                  }
-                  badge={
-                    <Badge color="primary" dot>
-                      {workoutMode === 'discovery' ? 'Routine Library' : 'Live Camera Active'}
-                    </Badge>
-                  }
-                  icon={<Cpu className="w-5 h-5 text-primary-bright" />}
-                />
-
-                {/* Mode Switcher Segmented Control */}
-                <div className="flex items-center gap-1 p-1 rounded-2xl bg-surface border border-border-subtle self-start sm:self-center shrink-0">
-                  <button
-                    onClick={() => setWorkoutMode('discovery')}
-                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+              {/* Header with Mode Switcher (only shown during Discovery or Active Coach) */}
+              {workoutMode !== 'completion' && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+                  <SectionHeader
+                    title={workoutMode === 'discovery' ? 'AI Workout Studio' : 'AI Biometric Pose Coach'}
+                    subtitle={
                       workoutMode === 'discovery'
-                        ? 'bg-primary text-white shadow-md shadow-primary/20'
-                        : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
-                    }`}
-                  >
-                    <Compass className="w-3.5 h-3.5" />
-                    <span>Discovery</span>
-                  </button>
+                        ? 'Discover campus-friendly routines and launch 100% on-device posture tracking.'
+                        : 'Real-time joint vector kinematics with instant speech feedback and dorm privacy.'
+                    }
+                    badge={
+                      <Badge color="primary" dot>
+                        {workoutMode === 'discovery' ? 'Routine Library' : 'Live Camera Active'}
+                      </Badge>
+                    }
+                    icon={<Cpu className="w-5 h-5 text-primary-bright" />}
+                  />
 
-                  <button
-                    onClick={() => setWorkoutMode('coach')}
-                    className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 ${
-                      workoutMode === 'coach'
-                        ? 'bg-primary text-white shadow-md shadow-primary/20'
-                        : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
-                    }`}
-                  >
-                    <Video className="w-3.5 h-3.5" />
-                    <span>AI Coach</span>
-                  </button>
+                  {/* Mode Switcher Segmented Control */}
+                  <div className="flex items-center gap-1 p-1 rounded-2xl bg-surface border border-border-subtle self-start sm:self-center shrink-0">
+                    <button
+                      onClick={() => setWorkoutMode('discovery')}
+                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                        workoutMode === 'discovery'
+                          ? 'bg-primary text-white shadow-md shadow-primary/20'
+                          : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
+                      }`}
+                    >
+                      <Compass className="w-3.5 h-3.5" />
+                      <span>Discovery</span>
+                    </button>
+
+                    <button
+                      onClick={() => setWorkoutMode('coach')}
+                      className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 ${
+                        workoutMode === 'coach'
+                          ? 'bg-primary text-white shadow-md shadow-primary/20'
+                          : 'text-text-muted hover:text-text-primary hover:bg-surface-hover'
+                      }`}
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      <span>AI Coach</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* MODE 1: WORKOUT DISCOVERY */}
               {workoutMode === 'discovery' && (
@@ -140,7 +145,13 @@ export default function Home() {
                     
                     {/* Left/Dominant: Camera & Pose Coach Screen */}
                     <div className="lg:col-span-8 flex flex-col space-y-4">
-                      <CameraView onBack={() => setWorkoutMode('discovery')} />
+                      <CameraView
+                        onBack={() => setWorkoutMode('discovery')}
+                        onComplete={(summary) => {
+                          setCompletionSummary(summary);
+                          setWorkoutMode('completion');
+                        }}
+                      />
 
                       {/* Privacy & Hardware Trust Badges */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -185,6 +196,20 @@ export default function Home() {
                 </div>
               )}
 
+              {/* MODE 3: WORKOUT COMPLETION */}
+              {workoutMode === 'completion' && completionSummary && (
+                <WorkoutCompletion
+                  summary={completionSummary}
+                  onDone={() => {
+                    setActiveTab('home');
+                    setWorkoutMode('discovery');
+                  }}
+                  onTryAnother={() => {
+                    setWorkoutMode('discovery');
+                  }}
+                />
+              )}
+
             </div>
           )}
 
@@ -192,14 +217,14 @@ export default function Home() {
           {activeTab === 'progress' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <SectionHeader
-                title="Weekly Calorie History & Daily Nutrition"
-                subtitle="Compare 7-day intake vs. exercise burn and log real student mess meals."
-                badge={<Badge color="warning">Energy Balance</Badge>}
-                icon={<TrendingUp className="w-5 h-5 text-warning" />}
+                title="Weekly Progress & Consistency"
+                subtitle="Track weekly goals, workout consistency, and energy balance over time."
+                badge={<Badge color="primary" dot>Performance Metrics</Badge>}
+                icon={<TrendingUp className="w-5 h-5 text-primary-bright" />}
               />
 
-              {/* The Graphical 7-Day Calories Burned vs Gained Chart */}
-              <WeeklyCalorieChart />
+              {/* Clean Progress Dashboard prioritizing Weekly Goals, Workout Count, Activity, Streak & Intentional Empty States */}
+              <ProgressDashboard onNavigate={setActiveTab} />
 
               {/* Daily Nutrition Smart-Logger & ₹100 Hacks */}
               <NutritionTracker />

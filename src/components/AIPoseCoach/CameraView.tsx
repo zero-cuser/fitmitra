@@ -64,11 +64,23 @@ const SKELETON_CONNECTIONS = [
 const COLOR_GOOD = '#22c55e'; // Neon Lime/Emerald
 const COLOR_FAULT = '#ef4444'; // Crimson Red
 
-interface CameraViewProps {
-  onBack?: () => void;
+export interface WorkoutSummary {
+  workoutName: string;
+  category: string;
+  reps: number;
+  metricUnit: 'reps' | 'seconds';
+  durationSeconds: number;
+  caloriesBurned: number;
+  streakDays: number;
+  xpEarned: number;
 }
 
-export const CameraView: React.FC<CameraViewProps> = ({ onBack }) => {
+interface CameraViewProps {
+  onBack?: () => void;
+  onComplete?: (summary: WorkoutSummary) => void;
+}
+
+export const CameraView: React.FC<CameraViewProps> = ({ onBack, onComplete }) => {
   const {
     selectedExercise,
     currentStage,
@@ -84,7 +96,8 @@ export const CameraView: React.FC<CameraViewProps> = ({ onBack }) => {
     toggleVoiceCoach,
     recordRep,
     resetSession,
-    setTargetReps
+    setTargetReps,
+    streakDays
   } = useWorkout();
 
   const config = EXERCISE_CATALOG[selectedExercise];
@@ -590,16 +603,39 @@ export const CameraView: React.FC<CameraViewProps> = ({ onBack }) => {
   const isPlank = config.isHoldExercise;
   const isComplete = sessionReps >= targetReps && targetReps > 0;
 
+  const sessionStartTimeRef = useRef<number>(Date.now());
+
   // Toggle Pause
   const togglePause = () => {
     setIsPaused((prev) => !prev);
   };
 
-  // Stop workout session
+  // Stop workout session cleanly
   const handleStop = () => {
     stopCamera();
     setViewState('idle');
     if (onBack) onBack();
+  };
+
+  // Finish workout session and route to completion screen
+  const handleFinishSession = () => {
+    const duration = Math.max(25, Math.round((Date.now() - sessionStartTimeRef.current) / 1000));
+    const cal = Number((sessionReps * config.calPerRep).toFixed(1));
+    stopCamera();
+    if (onComplete) {
+      onComplete({
+        workoutName: config.name,
+        category: config.category,
+        reps: sessionReps,
+        metricUnit: config.metricUnit,
+        durationSeconds: duration,
+        caloriesBurned: cal,
+        streakDays: streakDays,
+        xpEarned: Math.max(10, sessionReps * 2)
+      });
+    } else if (onBack) {
+      onBack();
+    }
   };
 
   return (
@@ -881,7 +917,7 @@ export const CameraView: React.FC<CameraViewProps> = ({ onBack }) => {
               <Button
                 variant="outline"
                 size="md"
-                onClick={handleStop}
+                onClick={handleFinishSession}
                 className="font-bold text-xs px-5 py-2.5"
               >
                 <span>Finish Session</span>
@@ -987,15 +1023,21 @@ export const CameraView: React.FC<CameraViewProps> = ({ onBack }) => {
           <span>{isPaused ? 'Resume' : 'Pause'}</span>
         </Button>
 
-        {/* Stop Workout */}
+        {/* Stop / Finish Workout */}
         <Button
           size="lg"
-          variant="danger"
-          onClick={handleStop}
+          variant={sessionReps > 0 ? 'success' : 'danger'}
+          onClick={() => {
+            if (sessionReps > 0) {
+              handleFinishSession();
+            } else {
+              handleStop();
+            }
+          }}
           className="min-h-[48px] py-3 text-xs sm:text-sm font-black flex items-center justify-center space-x-2 rounded-xl"
         >
           <Square className="w-5 h-5" />
-          <span>Stop</span>
+          <span>{sessionReps > 0 ? 'Finish' : 'Stop'}</span>
         </Button>
 
         {/* Sound / Mute Toggle */}
