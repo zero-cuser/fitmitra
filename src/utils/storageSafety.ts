@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   CALORIES_WEEK: 'fitmitra_daily_calorie_history',
   WATER: 'fitmitra_water_today',
   NOTIFICATIONS: 'fitmitra_notification_prefs',
+  EXAM_SESSIONS: 'fitmitra_exam_sessions',
   SCHEMA_VERSION: 'fitmitra_storage_version'
 } as const;
 
@@ -42,6 +43,7 @@ export interface UserDataExportPayload {
     waterToday: number | null;
     friends: unknown[] | null;
     notificationPreferences: unknown | null;
+    examSessions?: unknown[] | null;
   };
 }
 
@@ -133,7 +135,8 @@ export function getStorageInventory(): StorageInventoryItem[] {
     { key: STORAGE_KEYS.WATER, label: 'Daily Water Hydration Tracker', category: 'nutrition' },
     { key: STORAGE_KEYS.NUTRITION, label: 'Logged Meals & Nutrition History', category: 'nutrition' },
     { key: STORAGE_KEYS.FRIENDS, label: 'Campus Friends & Peer Stats', category: 'preferences' },
-    { key: STORAGE_KEYS.NOTIFICATIONS, label: 'Notification & Reminder Preferences', category: 'preferences' }
+    { key: STORAGE_KEYS.NOTIFICATIONS, label: 'Notification & Reminder Preferences', category: 'preferences' },
+    { key: STORAGE_KEYS.EXAM_SESSIONS, label: 'Exam Mode & Study Break Sessions', category: 'workout' }
   ];
 
   return items.map(({ key, label, category }) => {
@@ -177,7 +180,8 @@ export function exportAllUserData(): UserDataExportPayload {
       loggedMeals: safeGetItem(STORAGE_KEYS.NUTRITION),
       waterToday: safeGetItem(STORAGE_KEYS.WATER),
       friends: safeGetItem(STORAGE_KEYS.FRIENDS),
-      notificationPreferences: safeGetItem(STORAGE_KEYS.NOTIFICATIONS)
+      notificationPreferences: safeGetItem(STORAGE_KEYS.NOTIFICATIONS),
+      examSessions: safeGetItem(STORAGE_KEYS.EXAM_SESSIONS)
     }
   };
 
@@ -192,6 +196,7 @@ export function clearWorkoutHistory(): boolean {
     safeRemoveItem(STORAGE_KEYS.CALORIES_WEEK);
     safeRemoveItem(STORAGE_KEYS.WORKOUT);
     safeRemoveItem(STORAGE_KEYS.WATER);
+    safeRemoveItem(STORAGE_KEYS.EXAM_SESSIONS);
     return true;
   } catch (e) {
     console.error('Failed to clear workout history:', e);

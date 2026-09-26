@@ -74,6 +74,32 @@ class SoundEffects {
       });
     } catch {}
   }
+
+  // Gentle, soft meditation bell chime for study break transitions
+  playBreakBell() {
+    try {
+      const ctx = this.initCtx();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now); // A5 gentle bell
+      osc.frequency.exponentialRampToValueAtTime(440, now + 0.8); // A4 decay
+
+      gain.gain.setValueAtTime(0.08, now); // quiet, subtle chime
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.9);
+    } catch {}
+  }
 }
 
 export const sounds = new SoundEffects();
+export const playBreakBell = () => sounds.playBreakBell();

@@ -299,3 +299,44 @@ export interface WorkoutState {
   soundEnabled: boolean;
   voiceCoachEnabled: boolean;
 }
+
+// ========================================================
+// EXAM MODE / STUDY BREAK TYPES
+// ========================================================
+
+export type ExamModeType = 'reset' | 'break' | 'recharge';
+
+export type ExamActivityCategory = 'eye_break' | 'stretch' | 'movement' | 'breathing';
+
+export interface ExamActivityItem {
+  id: string;
+  name: string;
+  category: ExamActivityCategory;
+  durationSeconds: number;
+  description: string;
+  cues: string[];
+  exerciseKey?: ExerciseKey; // Set when camera pose tracking is applicable
+  isCameraEligible: boolean;
+}
+
+export interface ExamSessionConfig {
+  mode: ExamModeType;
+  title: string;
+  totalDurationSeconds: number;
+  activities: ExamActivityItem[];
+  constraintsUsed: WorkoutConstraints;
+}
+
+export interface ExamSessionRecord {
+  id: string;
+  mode: ExamModeType;
+  title: string;
+  completedAt: string;
+  durationMinutes: number;
+  durationSeconds: number;
+  activitiesCompleted: number;
+  totalActivities: number;
+  completedFully: boolean;
+}
+
+

@@ -4,7 +4,7 @@ import React from 'react';
 
 export interface ProgressBarProps {
   value: number; // 0 - 100
-  variant?: 'primary' | 'success' | 'warning' | 'accent';
+  variant?: 'primary' | 'success' | 'warning' | 'accent' | 'secondary';
   size?: 'sm' | 'md' | 'lg';
   label?: string;
   showPercent?: boolean;
@@ -29,6 +29,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
   const fillStyles = {
     primary: 'bg-gradient-to-r from-primary to-primary-bright shadow-sm shadow-primary/50',
+    secondary: 'bg-gradient-to-r from-secondary to-purple-400 shadow-sm shadow-secondary/50',
     success: 'bg-gradient-to-r from-success to-emerald-400 shadow-sm shadow-success/50',
     warning: 'bg-gradient-to-r from-warning to-orange-400 shadow-sm shadow-warning/50',
     accent: 'bg-gradient-to-r from-accent to-blue-400 shadow-sm shadow-accent/50'

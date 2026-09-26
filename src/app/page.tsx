@@ -15,6 +15,10 @@ import { ExamStressReset } from '@/components/Wellness/ExamStressReset';
 import { AIWorkoutAdvisor } from '@/components/AIWorkoutAdvisor/AIWorkoutAdvisor';
 import { ProfileView } from '@/components/Profile/ProfileView';
 import { HomeDashboard } from '@/components/Dashboard/HomeDashboard';
+import { ExamModeSession } from '@/components/ExamMode/ExamModeSession';
+import { createExamSession } from '@/services/examModeEngine';
+import { useWorkout } from '@/context/WorkoutContext';
+import type { ExamModeType, ExamSessionConfig, ExerciseKey } from '@/types/fitness';
 import { Badge } from '@/components/ui/Badge';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { NetworkBanner } from '@/components/ui/NetworkBanner';
@@ -46,12 +50,20 @@ const CameraView = dynamic(
 );
 
 export default function Home() {
+  const { setSelectedExercise } = useWorkout();
   const [activeTab, setActiveTab] = useState<NavTabId>('home');
   const [workoutMode, setWorkoutMode] = useState<'discovery' | 'coach' | 'completion'>('discovery');
   const [completionSummary, setCompletionSummary] = useState<WorkoutSummary | null>(null);
+  const [activeExamSession, setActiveExamSession] = useState<ExamSessionConfig | null>(null);
+
+  const handleSelectTab = (tab: NavTabId) => {
+    setActiveTab(tab);
+    setActiveExamSession(null);
+  };
 
   const handleNavigateFromHome = (tab: NavTabId) => {
     setActiveTab(tab);
+    setActiveExamSession(null);
     if (tab === 'workout') {
       setWorkoutMode('coach');
     }
@@ -60,18 +72,41 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background text-text-primary flex flex-col overflow-x-hidden">
       {/* Desktop Dark Left Sidebar */}
-      <Sidebar currentTab={activeTab} onSelectTab={setActiveTab} />
+      <Sidebar currentTab={activeTab} onSelectTab={handleSelectTab} />
 
       {/* Mobile Compact Top Bar */}
-      <MobileTopBar onSelectTab={setActiveTab} />
+      <MobileTopBar onSelectTab={handleSelectTab} />
 
       {/* Main Content Area */}
       <div className="flex-1 lg:pl-64 xl:pl-72 flex flex-col min-w-0 pb-20 lg:pb-8">
         <NetworkBanner />
         <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
           
-          {/* TAB 1: HOME DASHBOARD */}
-          {activeTab === 'home' && <HomeDashboard onNavigate={handleNavigateFromHome} />}
+          {/* EXAM MODE IMMERSIVE STUDY BREAK OVERLAY */}
+          {activeExamSession !== null ? (
+            <ExamModeSession
+              sessionConfig={activeExamSession}
+              onExit={() => setActiveExamSession(null)}
+              onLaunchAICoach={(exerciseKey) => {
+                setSelectedExercise(exerciseKey);
+                setActiveExamSession(null);
+                setActiveTab('workout');
+                setWorkoutMode('coach');
+              }}
+              onRestartSession={(newConfig) => setActiveExamSession(newConfig)}
+            />
+          ) : (
+            <>
+              {/* TAB 1: HOME DASHBOARD */}
+              {activeTab === 'home' && (
+                <HomeDashboard
+                  onNavigate={handleNavigateFromHome}
+                  onStartExamMode={(mode: ExamModeType) => {
+                    const session = createExamSession(mode);
+                    setActiveExamSession(session);
+                  }}
+                />
+              )}
 
           {/* TAB 2: WORKOUT (Discovery, Immersive AI Pose Coach, & Completion) */}
           {activeTab === 'workout' && (
@@ -258,12 +293,14 @@ export default function Home() {
               <ProfileView />
             </div>
           )}
+          </>
+          )}
 
         </main>
       </div>
 
       {/* Mobile Fixed Bottom Navigation Bar */}
-      <MobileBottomNav currentTab={activeTab} onSelectTab={setActiveTab} />
+      <MobileBottomNav currentTab={activeTab} onSelectTab={handleSelectTab} />
     </div>
   );
 }

@@ -15,12 +15,16 @@ import {
   Play,
   Sparkles,
   TrendingUp,
-  HeartHandshake
+  HeartHandshake,
+  BookOpen,
+  Coffee,
+  Brain,
+  Eye
 } from 'lucide-react';
 import { useWorkout } from '@/context/WorkoutContext';
 import { useAuth } from '@/context/AuthContext';
 import { NavTabId } from '@/components/Shell/Sidebar';
-import { ExerciseKey } from '@/types/fitness';
+import { ExerciseKey, ExamModeType } from '@/types/fitness';
 import { EXERCISE_CATALOG } from '@/data/exercises';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -31,9 +35,10 @@ import confetti from 'canvas-confetti';
 
 export interface HomeDashboardProps {
   onNavigate: (tab: NavTabId) => void;
+  onStartExamMode?: (mode: ExamModeType) => void;
 }
 
-export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigate }) => {
+export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigate, onStartExamMode }) => {
   const {
     selectedExercise,
     setSelectedExercise,
@@ -222,7 +227,116 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigate }) => {
         </div>
       </Card>
 
-      {/* 3. QUICK ACTIONS (4-GRID) */}
+      {/* 3. EXAM MODE: STUDY BREAK CARD */}
+      <Card variant="default" className="p-5 sm:p-6 space-y-4 border-accent/20 bg-gradient-to-br from-surface via-surface to-surface-elevated">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border-subtle pb-3">
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
+                Exam Mode • Study Break
+              </span>
+              <span className="w-1 h-1 rounded-full bg-border-strong" />
+              <span className="text-[10px] text-text-muted">Hostel Quiet • Zero Gear</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-bold text-text-primary tracking-tight mt-0.5">
+              Recharge Between Study Blocks
+            </h2>
+          </div>
+
+          <Badge color="accent" size="sm" dot>
+            Low Impact
+          </Badge>
+        </div>
+
+        <p className="text-xs text-text-secondary leading-relaxed">
+          Short, quiet movement &amp; vision recovery sessions to relieve desk stiffness and sustain study focus without disrupting roommates.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          {/* 2 Min Reset */}
+          <button
+            onClick={() => onStartExamMode ? onStartExamMode('reset') : onNavigate('workout')}
+            className="p-4 rounded-2xl bg-surface-elevated border border-border-subtle hover:border-accent/50 hover:bg-surface-hover transition-all text-left group cursor-pointer active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-xl bg-accent/10 border border-accent/25 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
+                  <Eye className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-accent px-2 py-0.5 rounded-full bg-accent/10">
+                  2 MIN
+                </span>
+              </div>
+              <h3 className="text-sm font-bold text-text-primary group-hover:text-accent transition-colors">
+                Desk Reset
+              </h3>
+              <p className="text-[11px] text-text-muted mt-1 leading-snug">
+                Screen rest, eye distance focus &amp; gentle neck mobility.
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-border-subtle/50 flex items-center justify-between text-[11px] font-bold text-accent">
+              <span>Start Reset</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+
+          {/* 5 Min Break */}
+          <button
+            onClick={() => onStartExamMode ? onStartExamMode('break') : onNavigate('workout')}
+            className="p-4 rounded-2xl bg-surface-elevated border border-border-subtle hover:border-secondary/50 hover:bg-surface-hover transition-all text-left group cursor-pointer active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-xl bg-secondary/10 border border-secondary/25 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
+                  <Coffee className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-secondary px-2 py-0.5 rounded-full bg-secondary/10">
+                  5 MIN
+                </span>
+              </div>
+              <h3 className="text-sm font-bold text-text-primary group-hover:text-secondary transition-colors">
+                Study Break
+              </h3>
+              <p className="text-[11px] text-text-muted mt-1 leading-snug">
+                Posture alignment, quiet squats &amp; 4-count paced breathing.
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-border-subtle/50 flex items-center justify-between text-[11px] font-bold text-secondary">
+              <span>Start Break</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+
+          {/* 10 Min Recharge */}
+          <button
+            onClick={() => onStartExamMode ? onStartExamMode('recharge') : onNavigate('workout')}
+            className="p-4 rounded-2xl bg-surface-elevated border border-border-subtle hover:border-primary/50 hover:bg-surface-hover transition-all text-left group cursor-pointer active:scale-[0.98] flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center text-primary-bright group-hover:scale-110 transition-transform">
+                  <Brain className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-primary-bright px-2 py-0.5 rounded-full bg-primary/10">
+                  10 MIN
+                </span>
+              </div>
+              <h3 className="text-sm font-bold text-text-primary group-hover:text-primary-bright transition-colors">
+                Deep Recharge
+              </h3>
+              <p className="text-[11px] text-text-muted mt-1 leading-snug">
+                Full-body mobility circuit, core hold &amp; hydration break.
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-border-subtle/50 flex items-center justify-between text-[11px] font-bold text-primary-bright">
+              <span>Start Recharge</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </div>
+          </button>
+        </div>
+      </Card>
+
+      {/* 4. QUICK ACTIONS (4-GRID) */}
       <div className="space-y-2">
         <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted px-1">
           Quick Actions
