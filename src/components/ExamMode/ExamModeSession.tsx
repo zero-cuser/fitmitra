@@ -31,6 +31,7 @@ import { ElapsedTimerController, TimerSnapshot } from '@/services/elapsedTimer';
 import { createExamSession } from '@/services/examModeEngine';
 import { playBreakBell } from '@/utils/soundEffects';
 import { STORAGE_KEYS, safeGetItem, safeSetItem } from '@/utils/storageSafety';
+import { loadAllChallengeProgress, recordActivityProgress } from '@/services/campusChallengesService';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
@@ -132,6 +133,23 @@ export const ExamModeSession: React.FC<ExamModeSessionProps> = ({
             };
 
             safeSetItem(STORAGE_KEYS.EXAM_SESSIONS, [newRecord, ...existing.slice(0, 49)]);
+
+            // Automatically update qualifying Campus Challenges
+            try {
+              const progressMap = loadAllChallengeProgress();
+              recordActivityProgress(
+                {
+                  id: newRecord.id,
+                  timestamp: newRecord.completedAt,
+                  type: 'exam_session',
+                  durationSeconds: snap.totalSessionElapsedSeconds,
+                  isHostelFriendly: true
+                },
+                progressMap
+              );
+            } catch (err) {
+              console.error('Failed to update challenge progress for exam session:', err);
+            }
           } catch (e) {
             console.error('Failed to persist exam session:', e);
           }

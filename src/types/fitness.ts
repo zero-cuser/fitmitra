@@ -339,4 +339,64 @@ export interface ExamSessionRecord {
   completedFully: boolean;
 }
 
+// ========================================================
+// CAMPUS CHALLENGES TYPES (PHASE 5)
+// ========================================================
+
+export type ChallengeType =
+  | 'rep_target'
+  | 'duration_target'
+  | 'streak'
+  | 'session_count';
+
+export type ChallengeCategory =
+  | 'strength'
+  | 'consistency'
+  | 'wellness'
+  | 'exam'
+  | 'hostel';
+
+export type ChallengeDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export interface CampusChallenge {
+  id: string;
+  title: string;
+  description: string;
+  category: ChallengeCategory;
+  type: ChallengeType;
+  targetValue: number;
+  unit: string;
+  durationDays: number;
+  startDate: string;
+  endDate: string;
+  exerciseKeys?: ExerciseKey[];
+  difficulty: ChallengeDifficulty;
+  isSampleData?: boolean;
+  constraints?: Partial<WorkoutConstraints>;
+  rules: string[];
+  tagline?: string;
+}
+
+export interface ChallengeProgress {
+  challengeId: string;
+  joinedAt: string;
+  currentValue: number;
+  completedDays: string[];
+  completedSessions: number;
+  processedActivityIds: string[];
+  completed: boolean;
+  completedAt?: string;
+}
+
+export interface CompletedActivityRecord {
+  id: string;
+  timestamp: string;
+  type: 'workout' | 'exam_session';
+  exerciseKey?: ExerciseKey;
+  reps?: number;
+  durationSeconds: number;
+  isHostelFriendly?: boolean;
+}
+
+
 

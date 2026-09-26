@@ -17,8 +17,9 @@ import { ProfileView } from '@/components/Profile/ProfileView';
 import { HomeDashboard } from '@/components/Dashboard/HomeDashboard';
 import { ExamModeSession } from '@/components/ExamMode/ExamModeSession';
 import { createExamSession } from '@/services/examModeEngine';
+import { loadAllChallengeProgress, recordActivityProgress } from '@/services/campusChallengesService';
 import { useWorkout } from '@/context/WorkoutContext';
-import type { ExamModeType, ExamSessionConfig, ExerciseKey } from '@/types/fitness';
+import type { ExamModeType, ExamSessionConfig, ExerciseKey, WorkoutConstraints } from '@/types/fitness';
 import { Badge } from '@/components/ui/Badge';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { NetworkBanner } from '@/components/ui/NetworkBanner';
@@ -50,7 +51,7 @@ const CameraView = dynamic(
 );
 
 export default function Home() {
-  const { setSelectedExercise } = useWorkout();
+  const { selectedExercise, setSelectedExercise } = useWorkout();
   const [activeTab, setActiveTab] = useState<NavTabId>('home');
   const [workoutMode, setWorkoutMode] = useState<'discovery' | 'coach' | 'completion'>('discovery');
   const [completionSummary, setCompletionSummary] = useState<WorkoutSummary | null>(null);
@@ -187,6 +188,25 @@ export default function Home() {
                         onComplete={(summary) => {
                           setCompletionSummary(summary);
                           setWorkoutMode('completion');
+
+                          // Deterministically update qualifying Campus Challenges
+                          try {
+                            const progressMap = loadAllChallengeProgress();
+                            recordActivityProgress(
+                              {
+                                id: `work_${Date.now()}_${summary.workoutName.toLowerCase().replace(/\s+/g, '_')}`,
+                                timestamp: new Date().toISOString(),
+                                type: 'workout',
+                                exerciseKey: selectedExercise,
+                                reps: summary.reps,
+                                durationSeconds: summary.durationSeconds,
+                                isHostelFriendly: true
+                              },
+                              progressMap
+                            );
+                          } catch (err) {
+                            console.error('Failed to update challenge progress for workout:', err);
+                          }
                         }}
                       />
 
@@ -279,9 +299,18 @@ export default function Home() {
               />
 
               <FriendsHub
-                onStartWorkout={() => {
+                onStartWorkout={(exerciseKey) => {
+                  if (exerciseKey) setSelectedExercise(exerciseKey);
                   setActiveTab('workout');
                   setWorkoutMode('coach');
+                }}
+                onStartExamMode={(mode) => {
+                  const session = createExamSession(mode || 'break');
+                  setActiveExamSession(session);
+                }}
+                onStartAdaptiveWorkout={(_constraints) => {
+                  setActiveTab('workout');
+                  setWorkoutMode('discovery');
                 }}
               />
             </div>

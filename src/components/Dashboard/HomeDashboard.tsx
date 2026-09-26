@@ -19,7 +19,8 @@ import {
   BookOpen,
   Coffee,
   Brain,
-  Eye
+  Eye,
+  Target
 } from 'lucide-react';
 import { useWorkout } from '@/context/WorkoutContext';
 import { useAuth } from '@/context/AuthContext';
@@ -31,6 +32,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { loadAllChallengeProgress, getChallengeCatalog } from '@/services/campusChallengesService';
 import confetti from 'canvas-confetti';
 
 export interface HomeDashboardProps {
@@ -133,6 +135,22 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigate, onStar
   const activeFriends = useMemo(() => {
     return (friends || []).slice(0, 3);
   }, [friends]);
+
+  const joinedChallengesList = useMemo(() => {
+    try {
+      const progressMap = loadAllChallengeProgress();
+      const catalog = getChallengeCatalog();
+      return catalog
+        .filter((c) => progressMap[c.id])
+        .map((c) => ({
+          challenge: c,
+          progress: progressMap[c.id]
+        }))
+        .slice(0, 2);
+    } catch {
+      return [];
+    }
+  }, []);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
@@ -497,7 +515,123 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({ onNavigate, onStar
         </div>
       </div>
 
-      {/* 5. CAMPUS ACTIVITY / CHALLENGE (REAL EXISTING DATA) */}
+      {/* 5. CAMPUS CHALLENGES (COMPACT) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center space-x-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">
+              Campus Challenges
+            </h3>
+            <span className="text-[10px] text-accent font-semibold">
+              • Local Habit Tracking
+            </span>
+          </div>
+          <button
+            onClick={() => onNavigate('community')}
+            className="text-[11px] text-primary-bright hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+          >
+            <span>All Challenges</span>
+            <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        {joinedChallengesList.length === 0 ? (
+          <Card variant="well" className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/25 text-primary-bright shrink-0">
+                <Target className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-text-primary">Join a Campus Challenge</h4>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  Take on the 7-Day Movement Streak or 100 Squats Challenge this week.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onNavigate('community')}
+              className="shrink-0 cursor-pointer"
+              rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
+            >
+              Browse Challenges
+            </Button>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {joinedChallengesList.map(({ challenge, progress }) => {
+              const percent = Math.min(100, Math.round((progress.currentValue / challenge.targetValue) * 100));
+              return (
+                <Card
+                  key={challenge.id}
+                  variant="well"
+                  className="p-4 space-y-3 flex flex-col justify-between"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1.5 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-primary-bright">
+                          {challenge.category}
+                        </span>
+                        <span className="text-[10px] text-text-muted">• {challenge.durationDays}d</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-text-primary truncate">
+                        {challenge.title}
+                      </h4>
+                    </div>
+                    <Badge color={progress.completed ? 'success' : 'primary'} size="sm">
+                      {progress.completed ? 'Done' : `${percent}%`}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="font-mono font-bold text-text-primary">
+                        {progress.currentValue} / {challenge.targetValue} {challenge.unit}
+                      </span>
+                      <span className="text-[10px] text-text-muted font-medium">
+                        {progress.completed ? 'Target Reached!' : `${Math.max(0, challenge.targetValue - progress.currentValue)} to go`}
+                      </span>
+                    </div>
+                    <ProgressBar
+                      value={percent}
+                      variant={challenge.category === 'exam' ? 'accent' : 'primary'}
+                      size="sm"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t border-border-subtle flex items-center justify-between">
+                    <button
+                      onClick={() => onNavigate('community')}
+                      className="text-[11px] font-semibold text-text-muted hover:text-text-primary cursor-pointer transition-colors"
+                    >
+                      Details
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (challenge.category === 'exam' && onStartExamMode) {
+                          onStartExamMode('break');
+                        } else if (challenge.exerciseKeys && challenge.exerciseKeys.length > 0) {
+                          handleStartWorkout(challenge.exerciseKeys[0]);
+                        } else {
+                          handleStartWorkout();
+                        }
+                      }}
+                      className="text-[11px] font-bold text-primary-bright hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{progress.completed ? 'Review' : 'Continue'}</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 6. CAMPUS ACTIVITY / CHALLENGE (REAL EXISTING DATA) */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center space-x-2">

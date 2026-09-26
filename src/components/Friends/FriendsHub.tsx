@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { DailyComparisonModal } from './DailyComparisonModal';
 import { CampusChallenges } from './CampusChallenges';
-import { Friend } from '@/types/fitness';
+import { Friend, ExerciseKey, ExamModeType, WorkoutConstraints } from '@/types/fitness';
 import {
   Users,
   UserPlus,
@@ -23,10 +23,16 @@ import { Button } from '@/components/ui/Button';
 import confetti from 'canvas-confetti';
 
 interface FriendsHubProps {
-  onStartWorkout?: () => void;
+  onStartWorkout?: (exerciseKey?: ExerciseKey) => void;
+  onStartExamMode?: (mode?: ExamModeType) => void;
+  onStartAdaptiveWorkout?: (constraints?: WorkoutConstraints) => void;
 }
 
-export const FriendsHub: React.FC<FriendsHubProps> = ({ onStartWorkout }) => {
+export const FriendsHub: React.FC<FriendsHubProps> = ({
+  onStartWorkout,
+  onStartExamMode,
+  onStartAdaptiveWorkout
+}) => {
   const { user, friends, addFriend, cheerFriend } = useAuth();
   const [activeView, setActiveView] = useState<'challenges' | 'friends'>('challenges');
   const [friendQuery, setFriendQuery] = useState('');
@@ -152,7 +158,11 @@ export const FriendsHub: React.FC<FriendsHubProps> = ({ onStartWorkout }) => {
       {/* VIEW 1: CAMPUS CHALLENGES */}
       {activeView === 'challenges' && (
         <div className="animate-in fade-in duration-200">
-          <CampusChallenges onStartWorkout={onStartWorkout} />
+          <CampusChallenges
+            onStartWorkout={onStartWorkout}
+            onStartExamMode={onStartExamMode}
+            onStartAdaptiveWorkout={onStartAdaptiveWorkout}
+          />
         </div>
       )}
 

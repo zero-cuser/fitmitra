@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   WATER: 'fitmitra_water_today',
   NOTIFICATIONS: 'fitmitra_notification_prefs',
   EXAM_SESSIONS: 'fitmitra_exam_sessions',
+  CHALLENGE_PROGRESS: 'fitmitra_challenge_progress',
   SCHEMA_VERSION: 'fitmitra_storage_version'
 } as const;
 
@@ -44,6 +45,7 @@ export interface UserDataExportPayload {
     friends: unknown[] | null;
     notificationPreferences: unknown | null;
     examSessions?: unknown[] | null;
+    challengeProgress?: Record<string, unknown> | null;
   };
 }
 
@@ -136,7 +138,8 @@ export function getStorageInventory(): StorageInventoryItem[] {
     { key: STORAGE_KEYS.NUTRITION, label: 'Logged Meals & Nutrition History', category: 'nutrition' },
     { key: STORAGE_KEYS.FRIENDS, label: 'Campus Friends & Peer Stats', category: 'preferences' },
     { key: STORAGE_KEYS.NOTIFICATIONS, label: 'Notification & Reminder Preferences', category: 'preferences' },
-    { key: STORAGE_KEYS.EXAM_SESSIONS, label: 'Exam Mode & Study Break Sessions', category: 'workout' }
+    { key: STORAGE_KEYS.EXAM_SESSIONS, label: 'Exam Mode & Study Break Sessions', category: 'workout' },
+    { key: STORAGE_KEYS.CHALLENGE_PROGRESS, label: 'Campus Challenge Progress', category: 'workout' }
   ];
 
   return items.map(({ key, label, category }) => {
@@ -151,9 +154,11 @@ export function getStorageInventory(): StorageInventoryItem[] {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             itemCount = parsed.length;
+          } else if (typeof parsed === 'object' && parsed !== null) {
+            itemCount = Object.keys(parsed).length;
           }
         } catch {
-          // not an array
+          // not an array/object
         }
       }
 
@@ -181,7 +186,8 @@ export function exportAllUserData(): UserDataExportPayload {
       waterToday: safeGetItem(STORAGE_KEYS.WATER),
       friends: safeGetItem(STORAGE_KEYS.FRIENDS),
       notificationPreferences: safeGetItem(STORAGE_KEYS.NOTIFICATIONS),
-      examSessions: safeGetItem(STORAGE_KEYS.EXAM_SESSIONS)
+      examSessions: safeGetItem(STORAGE_KEYS.EXAM_SESSIONS),
+      challengeProgress: safeGetItem(STORAGE_KEYS.CHALLENGE_PROGRESS)
     }
   };
 
@@ -197,6 +203,7 @@ export function clearWorkoutHistory(): boolean {
     safeRemoveItem(STORAGE_KEYS.WORKOUT);
     safeRemoveItem(STORAGE_KEYS.WATER);
     safeRemoveItem(STORAGE_KEYS.EXAM_SESSIONS);
+    safeRemoveItem(STORAGE_KEYS.CHALLENGE_PROGRESS);
     return true;
   } catch (e) {
     console.error('Failed to clear workout history:', e);
