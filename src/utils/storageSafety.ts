@@ -79,12 +79,26 @@ export function safeGetItem<T>(
     const raw = window.localStorage.getItem(key);
     if (raw === null || raw === undefined) return fallbackValue;
 
-    const parsed = JSON.parse(raw);
-    if (validator && !validator(parsed)) {
-      console.warn(`[StorageSafety] Corrupted data encountered for key "${key}". Using fallback.`);
+    try {
+      const parsed = JSON.parse(raw);
+      if (validator && !validator(parsed)) {
+        console.warn(`[StorageSafety] Corrupted data encountered for key "${key}". Using fallback.`);
+        return fallbackValue;
+      }
+      return parsed as T;
+    } catch {
+      // If raw string was intended as JSON object/array/quoted string, it is malformed JSON: fallback safely
+      const trimmed = raw.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"')) {
+        console.warn(`[StorageSafety] Corrupted data encountered for key "${key}". Using fallback.`);
+        return fallbackValue;
+      }
+      // Otherwise, it was stored as an unquoted plain string scalar (e.g. 'logged_out', 'guest', 'authenticated')
+      if (!validator || validator(raw)) {
+        return raw as unknown as T;
+      }
       return fallbackValue;
     }
-    return parsed as T;
   } catch (err) {
     console.warn(`[StorageSafety] Failed to read or parse key "${key}":`, err);
     return fallbackValue;
