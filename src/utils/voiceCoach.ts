@@ -12,6 +12,18 @@ class VoiceCoach {
     this.enabled = enabled;
   }
 
+  isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  cancel() {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {}
+    }
+  }
+
   speak(text: string, force = false) {
     if (!this.enabled || typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return;

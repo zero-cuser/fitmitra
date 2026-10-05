@@ -5,6 +5,15 @@
 
 class SoundEffects {
   private ctx: AudioContext | null = null;
+  private muted = false;
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+  }
+
+  isMuted(): boolean {
+    return this.muted;
+  }
 
   private initCtx() {
     if (typeof window === 'undefined') return null;
@@ -20,8 +29,34 @@ class SoundEffects {
     return this.ctx;
   }
 
+  // Subtle tick/click sound for countdowns and form cues
+  playTick() {
+    if (this.muted) return;
+    try {
+      const ctx = this.initCtx();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.05);
+    } catch {}
+  }
+
   // Crisp ascending chime for rep completion
   playRepSuccess() {
+    if (this.muted) return;
     try {
       const ctx = this.initCtx();
       if (!ctx) return;
@@ -50,6 +85,7 @@ class SoundEffects {
 
   // Celebratory chord for workout completion
   playWorkoutComplete() {
+    if (this.muted) return;
     try {
       const ctx = this.initCtx();
       if (!ctx) return;
@@ -77,6 +113,7 @@ class SoundEffects {
 
   // Gentle, soft meditation bell chime for study break transitions
   playBreakBell() {
+    if (this.muted) return;
     try {
       const ctx = this.initCtx();
       if (!ctx) return;
