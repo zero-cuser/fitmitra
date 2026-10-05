@@ -7,10 +7,10 @@ plugins {
 layout.buildDirectory.set(file("C:/Users/lenovo/.gradle/fitmitra-build/app"))
 
 android {
-    namespace = "com.fitmitra.spike"
+    namespace = "com.fitmitra"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.fitmitra.spike"
+        applicationId = "com.fitmitra"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -88,4 +88,7 @@ dependencies {
 
   // ML Kit Pose Detection
   implementation(libs.mlkit.pose.detection)
+
+  // Jetpack DataStore Preferences
+  implementation(libs.androidx.datastore.preferences)
 }
