@@ -9,12 +9,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,6 +36,10 @@ fun HomeScreen(
     onNavigateToChallenges: () -> Unit,
     onNavigateToProgress: () -> Unit
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.loadStats()
+    }
+
     val state by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
 
@@ -93,6 +102,10 @@ fun HomeScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "View progress and streaks. ${state.currentStreak} day streak, ${state.totalWorkouts} workouts completed."
+                }
                 .clickable { onNavigateToProgress() },
             color = FitMitraColors.Surface,
             shape = RoundedCornerShape(16.dp),
@@ -211,6 +224,10 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "Start ${exercise.name} workout, ${exercise.defaultReps} reps"
+                    }
                     .clickable { onNavigateToSetup(exercise.key.name) },
                 color = FitMitraColors.Surface,
                 shape = RoundedCornerShape(12.dp),
@@ -258,6 +275,10 @@ fun HomeScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Open Exam Mode study break workouts"
+                }
                 .clickable { onNavigateToExam() },
             color = FitMitraColors.Surface,
             shape = RoundedCornerShape(14.dp),
@@ -292,6 +313,10 @@ fun HomeScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Open Campus Challenges"
+                }
                 .clickable { onNavigateToChallenges() },
             color = FitMitraColors.Surface,
             shape = RoundedCornerShape(14.dp),

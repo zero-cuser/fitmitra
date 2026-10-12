@@ -71,7 +71,8 @@ enum class WorkoutSessionState {
     PAUSED,
     COMPLETING,
     COMPLETED,
-    CANCELLED
+    CANCELLED,
+    FAILED
 }
 
 data class RepTransitionThresholds(

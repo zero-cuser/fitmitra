@@ -5,10 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.fitmitra.core.domain.exercises.ExerciseCatalog
 import com.fitmitra.core.domain.models.ExerciseKey
 import com.fitmitra.core.domain.models.PoseFrame
+import com.fitmitra.core.domain.models.WorkoutSessionState
 import com.fitmitra.core.domain.models.WorkoutSummary
 import com.fitmitra.core.domain.pose.ExerciseAnalysisResult
 import com.fitmitra.core.domain.pose.ExerciseTracker
 import com.fitmitra.core.domain.pose.MovementPhase
+import com.fitmitra.core.domain.workouts.WorkoutRepository
 import com.fitmitra.core.domain.workouts.WorkoutRules
 import com.fitmitra.core.platform.interfaces.AudioCue
 import com.fitmitra.core.platform.interfaces.IAudioPlayer
@@ -20,9 +22,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 data class PoseCoachUiState(
+    val sessionId: String,
     val exerciseName: String,
+    val sessionState: WorkoutSessionState = WorkoutSessionState.ACTIVE,
     val currentReps: Int = 0,
     val targetReps: Int = 12,
     val currentAngle: Float = 180f,
@@ -36,6 +41,8 @@ data class PoseCoachUiState(
     val inferenceLatencyMs: Long = 0L,
     val averageConfidence: Float = 0f,
     val isCompleted: Boolean = false,
+    val isCancelled: Boolean = false,
+    val errorMessage: String? = null,
     val completedSummary: WorkoutSummary? = null
 )
 
@@ -47,19 +54,24 @@ class PoseCoachViewModel(
     private val storage: IAppStorage? = null
 ) : ViewModel() {
 
+    private val sessionId: String = "sess_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}"
     private val exerciseDef = ExerciseCatalog.getExercise(exerciseKey)
     private val tracker = ExerciseTracker(exerciseDef)
+    private val repository: WorkoutRepository? = storage?.let { WorkoutRepository(it) }
 
     private val _uiState = MutableStateFlow(
         PoseCoachUiState(
+            sessionId = sessionId,
             exerciseName = exerciseDef.name,
-            targetReps = targetReps
+            targetReps = targetReps,
+            sessionState = WorkoutSessionState.ACTIVE
         )
     )
     val uiState: StateFlow<PoseCoachUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
     private var lastSpokenFeedback: String? = null
+    private var isCompletingOrDone = false
 
     init {
         startTimer()
@@ -70,9 +82,10 @@ class PoseCoachViewModel(
         timerJob = viewModelScope.launch {
             while (true) {
                 delay(1000L)
-                if (!_uiState.value.isPaused && !_uiState.value.isCompleted) {
-                    _uiState.value = _uiState.value.copy(
-                        elapsedSeconds = _uiState.value.elapsedSeconds + 1
+                val state = _uiState.value
+                if (!state.isPaused && !state.isCompleted && !state.isCancelled && state.sessionState == WorkoutSessionState.ACTIVE) {
+                    _uiState.value = state.copy(
+                        elapsedSeconds = state.elapsedSeconds + 1
                     )
                 }
             }
@@ -80,7 +93,10 @@ class PoseCoachViewModel(
     }
 
     fun onPoseFrame(frame: PoseFrame, latencyMs: Long) {
-        if (_uiState.value.isPaused || _uiState.value.isCompleted) return
+        val state = _uiState.value
+        if (state.isPaused || state.isCompleted || state.isCancelled || state.sessionState != WorkoutSessionState.ACTIVE) {
+            return
+        }
 
         val result: ExerciseAnalysisResult = tracker.processFrame(frame)
 
@@ -95,7 +111,7 @@ class PoseCoachViewModel(
         }
 
         val completed = result.repCount >= targetReps
-        if (completed && !_uiState.value.isCompleted) {
+        if (completed && !isCompletingOrDone) {
             audioPlayer?.playCue(AudioCue.WORKOUT_COMPLETE)
             speechProvider?.speak("Workout completed! Fantastic job!", priority = true)
             completeSession(result.repCount)
@@ -114,8 +130,14 @@ class PoseCoachViewModel(
     }
 
     fun togglePause() {
+        if (_uiState.value.isCompleted || _uiState.value.isCancelled) return
+
         val newPaused = !_uiState.value.isPaused
-        _uiState.value = _uiState.value.copy(isPaused = newPaused)
+        val newState = if (newPaused) WorkoutSessionState.PAUSED else WorkoutSessionState.ACTIVE
+        _uiState.value = _uiState.value.copy(
+            isPaused = newPaused,
+            sessionState = newState
+        )
         if (newPaused) {
             speechProvider?.speak("Workout paused", priority = true)
         } else {
@@ -134,37 +156,85 @@ class PoseCoachViewModel(
         _uiState.value = _uiState.value.copy(showDebugOverlay = !_uiState.value.showDebugOverlay)
     }
 
+    /**
+     * User explicitly finishes session with current completed reps.
+     * Only counts as a completed workout if at least 1 rep was achieved.
+     */
     fun finishEarly() {
-        completeSession(_uiState.value.currentReps)
+        if (_uiState.value.currentReps > 0) {
+            completeSession(_uiState.value.currentReps)
+        } else {
+            cancelWorkout()
+        }
     }
 
-    private fun completeSession(finalReps: Int) {
-        val duration = _uiState.value.elapsedSeconds.coerceAtLeast(1)
-        val summary = WorkoutRules.createSessionSummary(
-            exerciseKey = exerciseKey,
-            completedReps = finalReps,
-            targetReps = targetReps,
-            durationSeconds = duration
-        )
+    /**
+     * Explicitly cancels and abandons the workout.
+     * Guaranteed NOT to increment total completed workouts or streaks.
+     */
+    fun cancelWorkout() {
+        if (isCompletingOrDone) return
+        isCompletingOrDone = true
+        timerJob?.cancel()
 
         _uiState.value = _uiState.value.copy(
-            isCompleted = true,
-            completedSummary = summary
+            sessionState = WorkoutSessionState.CANCELLED,
+            isCancelled = true,
+            isPaused = false
+        )
+        speechProvider?.speak("Workout cancelled", priority = true)
+    }
+
+    fun reportCameraError(error: Throwable) {
+        _uiState.value = _uiState.value.copy(
+            sessionState = WorkoutSessionState.FAILED,
+            errorMessage = error.localizedMessage ?: "Camera preview unavailable"
+        )
+    }
+
+    fun retryCamera() {
+        _uiState.value = _uiState.value.copy(
+            sessionState = WorkoutSessionState.ACTIVE,
+            errorMessage = null
+        )
+    }
+
+    /**
+     * Strictly idempotent completion logic.
+     */
+    private fun completeSession(finalReps: Int) {
+        if (isCompletingOrDone) return
+        isCompletingOrDone = true
+        timerJob?.cancel()
+
+        _uiState.value = _uiState.value.copy(
+            sessionState = WorkoutSessionState.COMPLETING
         )
 
-        // Asynchronously persist session and update stats
-        storage?.let { store ->
-            viewModelScope.launch {
-                val currentWorkouts = store.getInt("stat_total_workouts", 0)
-                val currentXp = store.getInt("stat_total_xp", 0)
-                val currentStreak = store.getInt("stat_current_streak", 0)
-                val longestStreak = store.getInt("stat_longest_streak", 0)
+        val duration = _uiState.value.elapsedSeconds.coerceAtLeast(1)
+        val summary = WorkoutSummary(
+            id = sessionId,
+            timestamp = System.currentTimeMillis(),
+            exerciseKey = exerciseKey,
+            exerciseName = exerciseDef.name,
+            completedReps = finalReps,
+            targetReps = targetReps,
+            durationSeconds = duration,
+            caloriesBurned = WorkoutRules.calculateCaloriesBurned(exerciseKey, finalReps),
+            xpEarned = WorkoutRules.calculateXpEarned(finalReps, isCompleted = true),
+            averagePostureScore = 92,
+            isCompleted = true
+        )
 
-                store.putInt("stat_total_workouts", currentWorkouts + 1)
-                store.putInt("stat_total_xp", currentXp + summary.xpEarned)
-                store.putInt("stat_current_streak", currentStreak + 1)
-                store.putInt("stat_longest_streak", maxOf(longestStreak, currentStreak + 1))
-            }
+        // Asynchronously persist session and update stats via WorkoutRepository
+        viewModelScope.launch {
+            repository?.recordCompletedSession(summary)
+
+            _uiState.value = _uiState.value.copy(
+                sessionState = WorkoutSessionState.COMPLETED,
+                isCompleted = true,
+                completedSummary = summary
+            )
         }
     }
 

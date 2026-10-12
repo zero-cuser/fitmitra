@@ -8,10 +8,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,6 +27,10 @@ fun ProgressScreen(
     viewModel: ProgressViewModel,
     onBack: () -> Unit
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.loadData()
+    }
+
     val state by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
 
@@ -35,15 +44,23 @@ fun ProgressScreen(
     ) {
         // Navigation Bar
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "‹ Back",
-                color = FitMitraColors.PrimaryBright,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
+            Box(
                 modifier = Modifier
-                    .clickable { onBack() }
-                    .padding(end = 12.dp, top = 4.dp, bottom = 4.dp)
-            )
+                    .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
+                    .semantics {
+                        role = Role.Button
+                        contentDescription = "Navigate back to Home"
+                    }
+                    .clickable { onBack() },
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "‹ Back",
+                    color = FitMitraColors.PrimaryBright,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp
+                )
+            }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Progress & Streaks",
