@@ -2,6 +2,7 @@ package com.fitmitra.feature.posecoach
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
@@ -93,6 +94,10 @@ fun PoseCoachScreen(
     }
 
     var showExitDialog by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = !state.isCompleted && !state.isCancelled) {
+        showExitDialog = true
+    }
 
     if (showExitDialog) {
         AlertDialog(
@@ -257,37 +262,67 @@ fun PoseCoachScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(FitMitraColors.Background),
+                    .background(FitMitraColors.Background)
+                    .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+                Surface(
+                    color = FitMitraColors.SurfaceElevated,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FitMitraColors.BorderSubtle)
                 ) {
-                    Text(
-                        "Camera permission is required for on-device AI Pose Coaching.",
-                        color = FitMitraColors.TextPrimary,
-                        fontSize = 15.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
-                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
                     ) {
-                        Text("Grant Camera Permission")
+                        Text(text = "📷", fontSize = 36.sp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Camera Permission Required",
+                            color = FitMitraColors.TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "FitMitra processes camera frames 100% on-device using Google ML Kit to track your movement and count reps. Camera frames are never recorded or transmitted over the internet.",
+                            color = FitMitraColors.TextSecondary,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Button(
+                                onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
+                                colors = ButtonDefaults.buttonColors(containerColor = FitMitraColors.Primary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Text("Grant Permission")
+                            }
+                            Button(
+                                onClick = onExitWorkout,
+                                colors = ButtonDefaults.buttonColors(containerColor = FitMitraColors.Surface),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Text("Exit Workout", color = FitMitraColors.TextPrimary)
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // Overlay: HUD & Controls
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
+        // Overlay: HUD & Controls (rendered only when camera tracking is active)
+        if (hasCameraPermission && state.sessionState != WorkoutSessionState.FAILED) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
             // TOP BAR
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -491,6 +526,7 @@ fun PoseCoachScreen(
                     Text("Finish", fontWeight = FontWeight.Bold)
                 }
             }
+        }
         }
     }
 }

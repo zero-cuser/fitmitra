@@ -101,4 +101,36 @@ class ExerciseTrackerTest {
         val res = tracker.processFrame(createSquatFrame(155f, t + 200L))
         assertEquals("Rapid bounce without cooldown must not trigger rep count", 0, res.repCount)
     }
+
+    @Test
+    fun testResetPhasePreventsPhantomRepOnUnpause() {
+        val squatDef = ExerciseCatalog.getExercise(ExerciseKey.SQUATS)
+        val tracker = ExerciseTracker(squatDef)
+
+        var t = 1000L
+        // 1. User starts squat: UP -> DESCENDING -> DOWN
+        tracker.processFrame(createSquatFrame(175f, t))
+        t += 200L
+        tracker.processFrame(createSquatFrame(135f, t))
+        t += 33L
+        tracker.processFrame(createSquatFrame(135f, t))
+        t += 200L
+        tracker.processFrame(createSquatFrame(115f, t))
+        t += 33L
+        val downRes = tracker.processFrame(createSquatFrame(115f, t))
+        assertEquals(MovementPhase.DOWN, downRes.phase)
+        assertEquals(0, downRes.repCount)
+
+        // 2. User pauses workout and stands up.
+        // Resetting phase upon resume resets phase to UP without modifying repCount.
+        tracker.resetPhase()
+        assertEquals(MovementPhase.UP, tracker.phase)
+        assertEquals(0, tracker.repCount)
+
+        // 3. Resumed frame while standing upright (175°) must NOT trigger a rep
+        val resumeRes = tracker.processFrame(createSquatFrame(175f, t + 5000L))
+        assertEquals(MovementPhase.UP, resumeRes.phase)
+        assertEquals("Standing upright after unpause must NOT count a phantom rep", 0, resumeRes.repCount)
+        assertFalse(resumeRes.repCompletedThisFrame)
+    }
 }

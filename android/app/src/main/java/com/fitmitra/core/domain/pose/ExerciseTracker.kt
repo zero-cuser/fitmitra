@@ -65,6 +65,16 @@ class ExerciseTracker(
         holdStartTimestampMs = 0L
     }
 
+    /**
+     * Resets the kinematic tracking phase to UP/neutral without resetting total completed reps.
+     * Used upon pause/resume to prevent phantom reps if user shifted position while paused.
+     */
+    fun resetPhase() {
+        phase = MovementPhase.UP
+        smoothedLandmarks = null
+        holdStartTimestampMs = 0L
+    }
+
     fun processFrame(rawFrame: PoseFrame): ExerciseAnalysisResult {
         val landmarks = AngleMath.smoothLandmarksEMA(rawFrame.landmarks, smoothedLandmarks)
         smoothedLandmarks = landmarks

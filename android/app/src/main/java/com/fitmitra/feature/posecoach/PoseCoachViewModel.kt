@@ -134,6 +134,9 @@ class PoseCoachViewModel(
 
         val newPaused = !_uiState.value.isPaused
         val newState = if (newPaused) WorkoutSessionState.PAUSED else WorkoutSessionState.ACTIVE
+        if (!newPaused) {
+            tracker.resetPhase()
+        }
         _uiState.value = _uiState.value.copy(
             isPaused = newPaused,
             sessionState = newState
@@ -208,6 +211,7 @@ class PoseCoachViewModel(
         timerJob?.cancel()
 
         _uiState.value = _uiState.value.copy(
+            currentReps = finalReps,
             sessionState = WorkoutSessionState.COMPLETING
         )
 
@@ -231,6 +235,7 @@ class PoseCoachViewModel(
             repository?.recordCompletedSession(summary)
 
             _uiState.value = _uiState.value.copy(
+                currentReps = finalReps,
                 sessionState = WorkoutSessionState.COMPLETED,
                 isCompleted = true,
                 completedSummary = summary

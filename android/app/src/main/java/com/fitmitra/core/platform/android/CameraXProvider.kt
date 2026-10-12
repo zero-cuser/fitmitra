@@ -25,7 +25,7 @@ class CameraXProvider(
 
     private var lifecycleOwner: LifecycleOwner? = null
     private var cameraProvider: ProcessCameraProvider? = null
-    private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
     override var currentFacing: CameraFacing = CameraFacing.FRONT
         private set
@@ -49,6 +49,10 @@ class CameraXProvider(
         val owner = lifecycleOwner ?: run {
             onError(IllegalStateException("LifecycleOwner not initialized"))
             return
+        }
+
+        if (cameraExecutor.isShutdown) {
+            cameraExecutor = Executors.newSingleThreadExecutor()
         }
 
         state = CameraState.STARTING

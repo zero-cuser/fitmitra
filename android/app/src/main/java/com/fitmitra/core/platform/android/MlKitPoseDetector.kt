@@ -29,6 +29,8 @@ class MlKitPoseDetector(
     private var poseListener: ((PoseFrame, Long) -> Unit)? = null
     private var errorListener: ((Throwable) -> Unit)? = null
 
+    private var isClosed = false
+
     override fun setPoseListener(listener: (frame: PoseFrame, latencyMs: Long) -> Unit) {
         this.poseListener = listener
     }
@@ -39,6 +41,11 @@ class MlKitPoseDetector(
 
     @ExperimentalGetImage
     override fun analyze(imageProxy: ImageProxy) {
+        if (isClosed) {
+            imageProxy.close()
+            return
+        }
+
         val mediaImage = imageProxy.image
         if (mediaImage == null) {
             imageProxy.close()
@@ -53,51 +60,57 @@ class MlKitPoseDetector(
         val width = inputImage.width
         val height = inputImage.height
 
-        detector.process(inputImage)
-            .addOnSuccessListener { pose ->
-                val inferenceLatencyMs = System.currentTimeMillis() - startTime
-                val allLandmarks = pose.allPoseLandmarks
+        try {
+            detector.process(inputImage)
+                .addOnSuccessListener { pose ->
+                    val inferenceLatencyMs = System.currentTimeMillis() - startTime
+                    val allLandmarks = pose.allPoseLandmarks
 
-                if (allLandmarks.isNotEmpty()) {
-                    val landmarksList = ArrayList<PoseLandmark>(33)
-                    for (i in 0..32) {
-                        val landmark = pose.getPoseLandmark(i)
-                        if (landmark != null) {
-                            landmarksList.add(
-                                CoordinateNormalizer.normalize(
-                                    rawX = landmark.position.x,
-                                    rawY = landmark.position.y,
-                                    rawZ = landmark.position3D.z,
-                                    confidence = landmark.inFrameLikelihood,
-                                    imageWidth = width,
-                                    imageHeight = height,
-                                    isFrontCamera = isFront
+                    if (allLandmarks.isNotEmpty()) {
+                        val landmarksList = ArrayList<PoseLandmark>(33)
+                        for (i in 0..32) {
+                            val landmark = pose.getPoseLandmark(i)
+                            if (landmark != null) {
+                                landmarksList.add(
+                                    CoordinateNormalizer.normalize(
+                                        rawX = landmark.position.x,
+                                        rawY = landmark.position.y,
+                                        rawZ = landmark.position3D.z,
+                                        confidence = landmark.inFrameLikelihood,
+                                        imageWidth = width,
+                                        imageHeight = height,
+                                        isFrontCamera = isFront
+                                    )
                                 )
-                            )
-                        } else {
-                            landmarksList.add(PoseLandmark(0f, 0f, 0f, 0f))
+                            } else {
+                                landmarksList.add(PoseLandmark(0f, 0f, 0f, 0f))
+                            }
                         }
-                    }
 
-                    val frame = PoseFrame(landmarksList, System.currentTimeMillis())
-                    poseListener?.invoke(frame, inferenceLatencyMs)
-                } else {
-                    poseListener?.invoke(
-                        PoseFrame(emptyList(), System.currentTimeMillis()),
-                        inferenceLatencyMs
-                    )
+                        val frame = PoseFrame(landmarksList, System.currentTimeMillis())
+                        poseListener?.invoke(frame, inferenceLatencyMs)
+                    } else {
+                        poseListener?.invoke(
+                            PoseFrame(emptyList(), System.currentTimeMillis()),
+                            inferenceLatencyMs
+                        )
+                    }
                 }
-            }
-            .addOnFailureListener { exc ->
-                errorListener?.invoke(exc)
-            }
-            .addOnCompleteListener {
-                // Ensure imageProxy is closed after every frame to prevent camera buffer exhaustion
-                imageProxy.close()
-            }
+                .addOnFailureListener { exc ->
+                    errorListener?.invoke(exc)
+                }
+                .addOnCompleteListener {
+                    // Ensure imageProxy is closed after every frame to prevent camera buffer exhaustion
+                    imageProxy.close()
+                }
+        } catch (t: Throwable) {
+            imageProxy.close()
+            errorListener?.invoke(t)
+        }
     }
 
     override fun close() {
+        isClosed = true
         try {
             detector.close()
         } catch (_: Exception) {

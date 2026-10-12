@@ -130,4 +130,17 @@ class PoseCoachViewModelHardeningTest {
         viewModel.toggleDebug()
         assertTrue(viewModel.uiState.value.showDebugOverlay)
     }
+
+    @Test
+    fun testPauseResumePhaseReset() {
+        // When active, toggle pause
+        viewModel.togglePause()
+        assertTrue(viewModel.uiState.value.isPaused)
+        assertEquals(WorkoutSessionState.PAUSED, viewModel.uiState.value.sessionState)
+
+        // Resuming must set isPaused = false and active state
+        viewModel.togglePause()
+        assertFalse(viewModel.uiState.value.isPaused)
+        assertEquals(WorkoutSessionState.ACTIVE, viewModel.uiState.value.sessionState)
+    }
 }
