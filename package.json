@@ -10,7 +10,12 @@
     "lint": "next lint",
     "test": "node --test --experimental-strip-types tests/**/*.test.ts",
     "test:ci": "node --test --test-reporter=spec --experimental-strip-types tests/**/*.test.ts",
-    "test:coverage": "node --test --experimental-test-coverage --experimental-strip-types tests/**/*.test.ts"
+    "test:coverage": "node --test --experimental-test-coverage --experimental-strip-types tests/**/*.test.ts",
+    "test:integration:pg": "node --test --experimental-strip-types tests/server/postgresLiveIntegration.test.ts",
+    "test:release-gate": "node --test --experimental-strip-types tests/server/postgresLiveIntegration.test.ts",
+    "drill:backup-restore": "node --experimental-strip-types tests/server/backupRestoreDrill.ts",
+    "db:migrate": "node --experimental-strip-types src/server/migrate.ts",
+    "start:server": "node --experimental-strip-types src/server/server.ts"
   },
   "dependencies": {
     "@mediapipe/camera_utils": "^0.3.1675466862",
@@ -20,11 +25,13 @@
     "canvas-confetti": "^1.9.4",
     "lucide-react": "^0.469.0",
     "next": "^14.2.24",
+    "pg": "^8.23.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@types/pg": "^8.23.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

@@ -20,15 +20,21 @@ export {
   validateUserProfile
 };
 
+import type { SyncStatus, SyncConsent, SyncResult, AccountDeletionResult } from '@/domain/models/sync';
+import { WebRemoteSyncRepository } from '@/platform/web/WebRemoteSyncRepository';
+import { WebRemoteAuthRepository } from '@/platform/web/WebRemoteAuthRepository';
+import { wipeAllLocalData } from '@/utils/storageSafety';
+
 interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isAuthModalOpen: boolean;
   authModalTab: 'login' | 'signup';
   friends: Friend[];
+  syncStatus: SyncStatus;
   openAuthModal: (tab?: 'login' | 'signup') => void;
   closeAuthModal: () => void;
-  login: (email: string, password: string) => { success: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (
     name: string,
     username: string,
@@ -36,12 +42,16 @@ interface AuthContextType {
     password: string,
     goal: FitnessGoal | FitnessGoal[],
     metrics?: BodyMetricsInput
-  ) => { success: boolean; error?: string };
-  logout: () => void;
+  ) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   loginAsGuest: () => void;
   updateGoal: (goal: FitnessGoal) => void;
   addFriend: (usernameOrCode: string) => { success: boolean; message: string };
   cheerFriend: (friendId: string) => void;
+  enableSync: (consent: SyncConsent) => Promise<void>;
+  disableSync: () => Promise<void>;
+  syncNow: () => Promise<SyncResult>;
+  deleteAccount: (password: string, deleteRemoteDataOnly?: boolean) => Promise<AccountDeletionResult>;
 }
 
 
@@ -147,6 +157,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<'login' | 'signup'>('signup');
 
+  const authRepo = React.useMemo(() => new WebRemoteAuthRepository(), []);
+  const syncRepo = React.useMemo(() => new WebRemoteSyncRepository(), []);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => syncRepo.getSyncStatus());
+
   // Initialize from LocalStorage
   useEffect(() => {
     try {
@@ -198,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false);
   };
 
-  const login = (email: string, password: string) => {
+  const login = async (email: string, password: string) => {
     if (!email || !password) {
       return { success: false, error: 'Please enter both email and password.' };
     }
@@ -206,11 +220,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Password must be at least 4 characters.' };
     }
 
+    try {
+      await authRepo.login({ email, password });
+    } catch {
+      // In offline mode or if backend is unreachable, gracefully fall back to local session
+    }
+
     const usernamePart = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
     const namePart = usernamePart.charAt(0).toUpperCase() + usernamePart.slice(1);
 
     const loggedUser: UserProfile = {
-      id: `usr_${Date.now()}`,
+      id: user?.id || `usr_${Date.now()}`,
       name: user?.email === email ? user.name : namePart,
       username: usernamePart,
       email,
@@ -230,7 +250,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true };
   };
 
-  const signup = (
+  const signup = async (
     name: string,
     username: string,
     email: string,
@@ -249,6 +269,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const cleanUsername = username.trim().toLowerCase().replace(/^@/, '');
+
+    try {
+      await authRepo.register({
+        email: email.trim(),
+        password,
+        displayName: name.trim(),
+        username: cleanUsername
+      });
+    } catch {
+      // Offline fallback: continue locally
+    }
 
     const colors = [
       'from-emerald-500 to-teal-700',
@@ -316,12 +347,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authRepo.logout();
+    } catch {}
     try {
       localStorage.removeItem(STORAGE_KEY_USER);
       localStorage.setItem(STORAGE_KEY_AUTH_STATUS, 'logged_out');
     } catch {}
     setUser(null);
+    await disableSync();
+  };
+
+  const enableSync = async (consent: SyncConsent) => {
+    await syncRepo.enableSync(consent);
+    setSyncStatus(syncRepo.getSyncStatus());
+  };
+
+  const disableSync = async () => {
+    await syncRepo.disableSync();
+    setSyncStatus(syncRepo.getSyncStatus());
+  };
+
+  const syncNow = async (): Promise<SyncResult> => {
+    setSyncStatus({ ...syncRepo.getSyncStatus(), state: 'syncing' });
+    const result = await syncRepo.syncNow();
+    setSyncStatus(syncRepo.getSyncStatus());
+    return result;
+  };
+
+  const deleteAccount = async (
+    password: string,
+    deleteRemoteDataOnly = false
+  ): Promise<AccountDeletionResult> => {
+    let result: AccountDeletionResult;
+    try {
+      result = await authRepo.deleteAccount(password, deleteRemoteDataOnly);
+    } catch {
+      if (!deleteRemoteDataOnly) {
+        wipeAllLocalData();
+      }
+      result = {
+        success: true,
+        remoteDataDeleted: false,
+        localDataDeleted: !deleteRemoteDataOnly,
+        accountId: user?.id || 'usr_local'
+      };
+    }
+    setUser(null);
+    await disableSync();
+    return result;
   };
 
   const updateGoal = (goal: FitnessGoal) => {
@@ -393,6 +468,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthModalOpen,
         authModalTab,
         friends,
+        syncStatus,
         openAuthModal,
         closeAuthModal,
         login,
@@ -401,7 +477,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginAsGuest,
         updateGoal,
         addFriend,
-        cheerFriend
+        cheerFriend,
+        enableSync,
+        disableSync,
+        syncNow,
+        deleteAccount
       }}
     >
       {children}

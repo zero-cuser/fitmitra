@@ -13,3 +13,8 @@ export * from './web/webStorage.ts';
 export * from './web/webAudio.ts';
 export * from './web/webSpeech.ts';
 export * from './web/webCamera.ts';
+export * from './web/WebRemoteAuthRepository.ts';
+export * from './web/WebRemoteSyncRepository.ts';
+export * from './web/WebRemoteSocialRepository.ts';
+export * from './web/WebRemoteSharedChallengeRepository.ts';
+

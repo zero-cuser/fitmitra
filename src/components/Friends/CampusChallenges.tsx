@@ -17,7 +17,10 @@ import {
   Footprints,
   Compass,
   RotateCcw,
-  Info
+  Info,
+  Key,
+  Lock,
+  Plus
 } from 'lucide-react';
 import { useWorkout } from '@/context/WorkoutContext';
 import { useAuth } from '@/context/AuthContext';
@@ -26,6 +29,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { WebRemoteSharedChallengeRepository } from '@/platform';
+import type { SharedChallenge } from '@/domain/models/social';
 import {
   CampusChallenge,
   ChallengeCategory,
@@ -53,7 +58,7 @@ export const CampusChallenges: React.FC<CampusChallengesProps> = ({
   onStartExamMode,
   onStartAdaptiveWorkout
 }) => {
-  const { friends } = useAuth();
+  const { friends, isAuthenticated, openAuthModal } = useAuth();
   const catalog = useMemo(() => getChallengeCatalog(), []);
 
   // Local persistent challenge progress state
@@ -61,10 +66,57 @@ export const CampusChallenges: React.FC<CampusChallengesProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedChallenge, setSelectedChallenge] = useState<CampusChallenge | null>(null);
 
-  // Load progress on mount
+  // Private Shared Challenges State
+  const [sharedChallenges, setSharedChallenges] = useState<SharedChallenge[]>([]);
+  const [challengeCodeInput, setChallengeCodeInput] = useState('');
+  const [isJoiningShared, setIsJoiningShared] = useState(false);
+  const [sharedFeedback, setSharedFeedback] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Load progress and private challenges on mount
   useEffect(() => {
     setProgressMap(loadAllChallengeProgress());
-  }, []);
+
+    if (!isAuthenticated) return;
+    let isMounted = true;
+    const repo = new WebRemoteSharedChallengeRepository();
+    repo.getUserChallenges()
+      .then((challenges) => {
+        if (isMounted) setSharedChallenges(challenges);
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
+
+  const handleJoinShared = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = challengeCodeInput.trim().toUpperCase();
+    if (!code) return;
+    if (!isAuthenticated) {
+      openAuthModal('signup');
+      return;
+    }
+    setIsJoiningShared(true);
+    setSharedFeedback(null);
+    try {
+      const repo = new WebRemoteSharedChallengeRepository();
+      const ch = await repo.joinChallenge(code);
+      setSharedChallenges((prev) => [ch, ...prev.filter((c) => c.id !== ch.id)]);
+      setSharedFeedback({
+        success: true,
+        message: `Joined private sprint "${ch.title}"!`
+      });
+      setChallengeCodeInput('');
+    } catch (err: any) {
+      setSharedFeedback({
+        success: false,
+        message: err.message || 'Invalid or expired challenge code.'
+      });
+    } finally {
+      setIsJoiningShared(false);
+    }
+  };
 
   // Filter challenges by category
   const filteredChallenges = useMemo(() => {
@@ -144,6 +196,90 @@ export const CampusChallenges: React.FC<CampusChallengesProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Private Cohort Sprints (Cloud Sync / Invite Code) */}
+      <Card variant="elevated" className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center space-x-1.5 text-xs font-bold text-text-primary">
+              <Lock className="w-3.5 h-3.5 text-secondary" />
+              <span>Private Room & Cohort Sprints</span>
+            </div>
+            <p className="text-[11px] text-text-secondary mt-0.5">
+              Closed campus sprints (2–50 students). Join with your hostel batchmate&apos;s code.
+            </p>
+          </div>
+
+          <Badge color={isAuthenticated ? 'success' : 'muted'} size="sm">
+            {isAuthenticated ? '● Live Server Sync' : 'Local Guest Mode'}
+          </Badge>
+        </div>
+
+        <form onSubmit={handleJoinShared} className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="text"
+            value={challengeCodeInput}
+            onChange={(e) => setChallengeCodeInput(e.target.value)}
+            placeholder="Enter challenge invite code (e.g. CHAL-8821)..."
+            className="flex-1 px-3.5 py-2.5 bg-surface-well border border-border-subtle rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-secondary transition-colors font-mono"
+          />
+          <Button
+            type="submit"
+            variant="secondary"
+            size="sm"
+            disabled={isJoiningShared || !challengeCodeInput.trim()}
+            leftIcon={<Key className="w-4 h-4" />}
+          >
+            {isJoiningShared ? 'Joining...' : 'Join Sprint'}
+          </Button>
+        </form>
+
+        {sharedFeedback && (
+          <div
+            className={`p-3 rounded-xl border text-xs font-medium flex items-center space-x-2 ${
+              sharedFeedback.success
+                ? 'bg-success/10 border-success/30 text-success'
+                : 'bg-danger/10 border-danger/30 text-danger'
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{sharedFeedback.message}</span>
+          </div>
+        )}
+
+        {/* List of joined private challenges */}
+        {sharedChallenges.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-border-subtle">
+            <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
+              Enrolled Private Sprints ({sharedChallenges.length})
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {sharedChallenges.map((sc) => (
+                <div
+                  key={sc.id}
+                  className="p-3 rounded-xl bg-surface border border-border-subtle flex flex-col justify-between space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h5 className="text-xs font-bold text-text-primary">{sc.title}</h5>
+                      <span className="text-[10px] text-secondary font-mono">{sc.inviteCode}</span>
+                    </div>
+                    <Badge color="secondary" size="sm">
+                      {sc.activeParticipantsCount ?? 1} Joined
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-text-muted">
+                    <span>Target: {sc.targetValue} {sc.unit}</span>
+                    <span className="font-semibold text-text-primary">
+                      {sc.userPercentage ?? 0}% done
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+
       {/* Category Filter Bar */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         {categories.map((cat) => (

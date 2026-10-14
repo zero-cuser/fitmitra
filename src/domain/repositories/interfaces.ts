@@ -12,6 +12,23 @@ import type {
   DomainUserProfile,
   WorkoutSessionRecord
 } from '../models/account.ts';
+import type {
+  AccountDeletionResult,
+  AuthCredentials,
+  AuthSession,
+  SyncConsent,
+  SyncOptions,
+  SyncResult,
+  SyncStatus
+} from '../models/sync.ts';
+import type {
+  FriendInvitation,
+  Friendship,
+  FriendshipsList,
+  SharedChallenge,
+  SharedChallengeDetails
+} from '../models/social.ts';
+import type { CompletedActivityRecord } from '../../types/fitness.ts';
 
 // ========================================================
 // REPOSITORY ERROR HIERARCHY
@@ -139,3 +156,161 @@ export interface IUserRepository {
    */
   clearUser(): Promise<void>;
 }
+
+/**
+ * Repository interface for managing authentication lifecycle.
+ * Implementations may be Local (anonymous guest) or Remote (backend auth provider).
+ */
+export interface IAuthRepository {
+  /**
+   * Registers a new account with email, password, and optional profile metadata.
+   */
+  register(credentials: AuthCredentials): Promise<AuthSession>;
+
+  /**
+   * Authenticates an existing user and returns an active session.
+   */
+  login(credentials: AuthCredentials): Promise<AuthSession>;
+
+  /**
+   * Explicitly terminates active session and clears tokens.
+   */
+  logout(): Promise<void>;
+
+  /**
+   * Retrieves active authenticated session, or null if anonymous/logged out.
+   */
+  getCurrentSession(): Promise<AuthSession | null>;
+
+  /**
+   * Permanently deletes account with explicit remote and/or local data wiping choices.
+   */
+  deleteAccount(password: string, deleteRemoteDataOnly?: boolean): Promise<AccountDeletionResult>;
+}
+
+/**
+ * Repository interface for managing opt-in cloud synchronization.
+ */
+export interface ISyncRepository {
+  /**
+   * Returns current observable sync status.
+   */
+  getSyncStatus(): SyncStatus;
+
+  /**
+   * Enables synchronization with explicit user consent.
+   */
+  enableSync(consent: SyncConsent): Promise<void>;
+
+  /**
+   * Disables synchronization and resets client to local-only mode.
+   */
+  disableSync(): Promise<void>;
+
+  /**
+   * Manually or automatically triggers synchronization.
+   */
+  syncNow(options?: SyncOptions): Promise<SyncResult>;
+
+  /**
+   * Retrieves the count of local changes pending synchronization.
+   */
+  getPendingCount(): Promise<number>;
+}
+
+/**
+ * Repository interface for managing privacy-first friend connections.
+ */
+export interface ISocialRepository {
+  /**
+   * Creates a shareable invitation code with expiry.
+   */
+  createInvitation(options?: { maxUses?: number; expiryDays?: number }): Promise<FriendInvitation>;
+
+  /**
+   * Sends a friend request using an invitation code.
+   */
+  sendFriendRequest(inviteCode: string): Promise<{
+    friendship: Friendship;
+    invitationCreator: { displayName: string; avatarColor: string; hostelWing?: string };
+  }>;
+
+  /**
+   * Retrieves friends and incoming/outgoing pending requests.
+   */
+  getFriendships(): Promise<FriendshipsList>;
+
+  /**
+   * Responds to an incoming pending friend request.
+   */
+  respondToRequest(friendshipId: string, action: 'accept' | 'decline'): Promise<Friendship>;
+
+  /**
+   * Removes an existing friend connection.
+   */
+  removeFriend(friendshipId: string): Promise<boolean>;
+
+  /**
+   * Revokes an active invitation code created by the user.
+   */
+  revokeInvitation(inviteCode: string): Promise<boolean>;
+}
+
+/**
+ * Repository interface for managing private shared campus challenges.
+ */
+export interface ISharedChallengeRepository {
+  /**
+   * Creates a private shared fitness challenge.
+   */
+  createChallenge(data: {
+    title: string;
+    description: string;
+    category?: 'strength' | 'consistency' | 'cardio' | 'posture' | 'exam';
+    type?: 'rep_target' | 'duration_target' | 'session_count' | 'streak';
+    targetValue: number;
+    unit?: string;
+    exerciseKeys?: string[];
+    startDate: string;
+    endDate: string;
+    maxParticipants?: number;
+  }): Promise<SharedChallenge>;
+
+  /**
+   * Lists all active or completed challenges the user participates in.
+   */
+  getUserChallenges(): Promise<SharedChallenge[]>;
+
+  /**
+   * Joins a challenge via invite code.
+   */
+  joinChallenge(inviteCode: string): Promise<SharedChallenge>;
+
+  /**
+   * Retrieves full details, standings, and participant progress for a challenge.
+   */
+  getChallengeDetails(challengeId: string): Promise<SharedChallengeDetails>;
+
+  /**
+   * Contributes a completed workout or exam session to a challenge.
+   */
+  contributeToChallenge(
+    challengeId: string,
+    activity: CompletedActivityRecord
+  ): Promise<{
+    updatedScore: number;
+    challengeCompleted: boolean;
+  }>;
+
+  /**
+   * Leaves a shared challenge.
+   */
+  leaveChallenge(challengeId: string): Promise<boolean>;
+
+  /**
+   * Cancels a challenge (owner only).
+   */
+  cancelChallenge(challengeId: string): Promise<boolean>;
+}
+
+

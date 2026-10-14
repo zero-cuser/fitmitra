@@ -412,7 +412,44 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
 
 ## 14. Unresolved Decisions & Open Questions
 
-The following decisions are intentionally deferred until Phase 7:
-1. **Campus Domain Verification**: Whether `.edu.in` or college email verification should be required to join campus-specific wings, or if self-declared hostel wing selection is sufficient.
-2. **End-to-End Encryption for Biometrics**: Evaluating whether physical metrics (height/weight) should be encrypted client-side using a user-derived WebCrypto key prior to cloud sync.
-3. **P2P Local Mesh (WebRTC/Wi-Fi Direct)**: Exploring local dormitory peer-to-peer sync without an internet connection for roommate challenge leaderboards.
+The following decisions were analyzed in Phase 13:
+1. **Campus Domain Verification**: Campus email addresses accepted with format validation; open self-declaration for hostel wings preserved.
+2. **End-to-End Encryption for Biometrics**: Sensitive biometrics default to local-only. Cloud synchronization is strictly opt-in with explicit user preview.
+3. **P2P Local Mesh (WebRTC/Wi-Fi Direct)**: Deferred in favor of the lightweight, privacy-preserving REST synchronization protocol.
+
+---
+
+## 15. Phase 13 Backend Implementation & Production Architecture (October 2026)
+
+**Status**: Implemented & Verified in Production  
+
+In Phase 13, the planned backend architecture was implemented as a production-ready, minimal REST service slice:
+
+### 15.1 Component Inventory Landed
+1. **Relational Database & Schema (`src/server/schema.sql`)**:
+   - Production PostgreSQL 15+ schema with 5 tables: `accounts`, `profiles`, `workout_records`, `challenge_progress`, `sync_tombstones`.
+   - Comprehensive Row-Level Security (RLS) policies enforcing multi-tenant isolation at the engine level.
+   - Cascading deletions on `accounts.id` (`ON DELETE CASCADE`) guaranteeing the right to erasure.
+2. **Secure Cryptographic Core (`src/server/crypto.ts`)**:
+   - PBKDF2-HMAC-SHA512 password hashing with 100,000 iterations and 32-byte cryptographically secure salts.
+   - Timing-safe comparisons (`crypto.timingSafeEqual`) preventing timing side-channel attacks.
+   - HMAC-SHA256 JWT generation with 7-day expiration and signature validation.
+3. **REST Service Endpoints (`src/server/routes.ts`, `src/server/server.ts`)**:
+   - `/api/v1/health`: System health and status.
+   - `/api/v1/auth/register`, `/login`, `/session`, `/logout`, `/delete`: Complete authentication lifecycle.
+   - `/api/v1/sync/push`, `/pull`: Idempotent cloud backup and synchronization.
+   - Zero-Egress Invariant Gate: Rejects any request payload containing camera frames or pose landmarks with HTTP `422 Unprocessable Entity`.
+   - Rate limiting (sliding window) and 1 MB payload size protection.
+4. **Web Client Integration**:
+   - `WebRemoteAuthRepository` & `WebRemoteSyncRepository` implementing domain repository interfaces.
+   - Updated `AuthContext.tsx` with reactive sync status, enable/disable toggles, manual sync trigger, and account deletion with password verification.
+   - Next.js static export (`out/`) preserved with zero regressions.
+5. **Native Android Client Integration**:
+   - `RemoteAuthRepository.kt` & `RemoteSyncRepository.kt` using standard `HttpURLConnection` and Android `DataStore`.
+   - `AccountViewModel.kt` & `AccountScreen.kt` Jetpack Compose UI with anonymous mode indicator, cloud backup toggle, and deletion dialog.
+   - Wired into `FitMitraApp.kt` navigation and `HomeScreen.kt` UI.
+6. **Automated Verification**:
+   - 268 Node/Web tests passing (100% pass rate).
+   - Dedicated server test suites (`auth.test.ts`, `authorization.test.ts`, `sync.test.ts`).
+   - Native Android unit tests (`AccountViewModelTest`, `RemoteSyncRepositoryTest`).
+

@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { DailyComparisonModal } from './DailyComparisonModal';
 import { CampusChallenges } from './CampusChallenges';
 import { Friend, ExerciseKey, ExamModeType, WorkoutConstraints } from '@/types/fitness';
+import type { FriendInvitation, FriendProfile, FriendshipsList } from '@/domain/models/social';
+import { WebRemoteSocialRepository } from '@/platform';
 import {
   Users,
   UserPlus,
@@ -15,12 +17,24 @@ import {
   Sparkles,
   CheckCircle2,
   ArrowRight,
-  Target
+  Target,
+  Copy,
+  Check,
+  Share2,
+  UserCheck,
+  UserX,
+  Key
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import confetti from 'canvas-confetti';
+
+interface IncomingFriendRequest {
+  friendshipId: string;
+  requester: FriendProfile;
+  requestedAt: string;
+}
 
 interface FriendsHubProps {
   onStartWorkout?: (exerciseKey?: ExerciseKey) => void;
@@ -33,17 +47,128 @@ export const FriendsHub: React.FC<FriendsHubProps> = ({
   onStartExamMode,
   onStartAdaptiveWorkout
 }) => {
-  const { user, friends, addFriend, cheerFriend } = useAuth();
+  const { user, friends, addFriend, cheerFriend, isAuthenticated, openAuthModal } = useAuth();
   const [activeView, setActiveView] = useState<'challenges' | 'friends'>('challenges');
   const [friendQuery, setFriendQuery] = useState('');
   const [addFeedback, setAddFeedback] = useState<{ success: boolean; message: string } | null>(null);
   const [selectedFriendForComparison, setSelectedFriendForComparison] = useState<Friend | null>(null);
+  
+  // Phase 15 Campus Social State
+  const [activeInviteCode, setActiveInviteCode] = useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = useState<boolean>(false);
+  const [isGeneratingCode, setIsGeneratingCode] = useState<boolean>(false);
+  const [pendingIncoming, setPendingIncoming] = useState<IncomingFriendRequest[]>([]);
+  const [isLoadingPending, setIsLoadingPending] = useState<boolean>(false);
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  // Load incoming friend requests if authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let isMounted = true;
+    setIsLoadingPending(true);
+    const repo = new WebRemoteSocialRepository();
+    repo.getFriendships()
+      .then((res) => {
+        if (isMounted) {
+          setPendingIncoming(res.pendingIncoming);
+        }
+      })
+      .catch(() => {
+        // Fall back gracefully in offline/local mode
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingPending(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
+
+  const handleGenerateCode = async () => {
+    if (!isAuthenticated) {
+      openAuthModal('signup');
+      return;
+    }
+    setIsGeneratingCode(true);
+    try {
+      const repo = new WebRemoteSocialRepository();
+      const inv = await repo.createInvitation();
+      setActiveInviteCode(inv.inviteCode);
+      confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
+    } catch (err: any) {
+      setAddFeedback({
+        success: false,
+        message: err.message || 'Failed to generate invitation code.'
+      });
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
+  const handleCopyCode = async () => {
+    if (!activeInviteCode) return;
+    try {
+      await navigator.clipboard.writeText(activeInviteCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2500);
+    } catch {
+      // ignore clipboard error
+    }
+  };
+
+  const handleRespondRequest = async (friendshipId: string, accept: boolean) => {
+    try {
+      const repo = new WebRemoteSocialRepository();
+      await repo.respondToRequest(friendshipId, accept ? 'accept' : 'decline');
+      setPendingIncoming((prev) => prev.filter((p) => p.friendshipId !== friendshipId));
+      if (accept) {
+        confetti({ particleCount: 50, spread: 70, origin: { y: 0.5 } });
+        setAddFeedback({
+          success: true,
+          message: 'Friend request accepted!'
+        });
+      } else {
+        setAddFeedback({
+          success: true,
+          message: 'Friend request declined.'
+        });
+      }
+    } catch (err: any) {
+      setAddFeedback({
+        success: false,
+        message: err.message || 'Failed to update friend request.'
+      });
+    }
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!friendQuery.trim()) return;
+    const query = friendQuery.trim();
+    if (!query) return;
 
-    const res = addFriend(friendQuery);
+    if (query.toUpperCase().startsWith('FIT-')) {
+      if (!isAuthenticated) {
+        openAuthModal('login');
+        return;
+      }
+      try {
+        const repo = new WebRemoteSocialRepository();
+        const res = await repo.sendFriendRequest(query.toUpperCase());
+        setAddFeedback({
+          success: true,
+          message: `Friend request sent to ${res.invitationCreator.displayName}!`
+        });
+        setFriendQuery('');
+        confetti({ particleCount: 40, spread: 60, origin: { y: 0.5 } });
+      } catch (err: any) {
+        setAddFeedback({
+          success: false,
+          message: err.message || 'Invalid or expired invitation code.'
+        });
+      }
+      return;
+    }
+
+    const res = addFriend(query);
     setAddFeedback(res);
     if (res.success) {
       setFriendQuery('');
@@ -104,7 +229,99 @@ export const FriendsHub: React.FC<FriendsHubProps> = ({
 
         {/* View 2: Connect Friend Form (only shown if on Friends view) */}
         {activeView === 'friends' && (
-          <div className="space-y-3 pt-2 border-t border-border-subtle">
+          <div className="space-y-4 pt-3 border-t border-border-subtle">
+            {/* Campus Invite Code Generator Section */}
+            <div className="p-3.5 rounded-2xl bg-surface-well border border-border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-1.5 text-xs font-bold text-text-primary">
+                  <Key className="w-3.5 h-3.5 text-accent" />
+                  <span>Campus Friend Code</span>
+                </div>
+                <p className="text-[11px] text-text-secondary">
+                  Share a private code with hostel batchmates without sharing phone numbers or emails.
+                </p>
+              </div>
+
+              {activeInviteCode ? (
+                <div className="flex items-center space-x-2 self-start sm:self-center">
+                  <span className="px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/30 text-accent font-mono font-extrabold text-sm tracking-wider">
+                    {activeInviteCode}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCopyCode}
+                    leftIcon={codeCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                  >
+                    {codeCopied ? 'Copied!' : 'Copy Code'}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleGenerateCode}
+                  disabled={isGeneratingCode}
+                  leftIcon={<Share2 className="w-3.5 h-3.5 text-accent" />}
+                  className="self-start sm:self-center shrink-0"
+                >
+                  {isGeneratingCode ? 'Generating...' : 'Get Invite Code'}
+                </Button>
+              )}
+            </div>
+
+            {/* Pending Incoming Friend Requests */}
+            {pendingIncoming.length > 0 && (
+              <div className="space-y-2 p-3.5 rounded-2xl bg-primary/5 border border-primary/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-primary flex items-center space-x-1.5">
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Incoming Friend Requests ({pendingIncoming.length})</span>
+                  </span>
+                </div>
+                <div className="space-y-2 pt-1">
+                  {pendingIncoming.map((req) => (
+                    <div
+                      key={req.friendshipId}
+                      className="p-2.5 rounded-xl bg-surface border border-border-subtle flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-accent to-primary flex items-center justify-center text-white font-bold text-xs">
+                          {req.requester.displayName.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-text-primary">{req.requester.displayName}</p>
+                          <p className="text-[10px] text-text-muted font-mono">@{req.requester.username || 'student'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleRespondRequest(req.friendshipId, true)}
+                          className="px-2.5 py-1.5 rounded-lg bg-success text-white hover:bg-success/90 text-xs font-semibold flex items-center space-x-1 transition-colors"
+                          title="Accept Request"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Accept</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRespondRequest(req.friendshipId, false)}
+                          className="px-2.5 py-1.5 rounded-lg bg-surface-well hover:bg-surface-elevated text-text-muted hover:text-text-primary text-xs font-semibold flex items-center space-x-1 transition-colors"
+                          title="Decline Request"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                          <span>Decline</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-text-primary">Connect with Campus Friends</span>
               <div className="px-2.5 py-1 rounded-xl bg-surface-well border border-border-subtle text-[11px] flex items-center space-x-1.5 text-text-secondary">
@@ -125,8 +342,8 @@ export const FriendsHub: React.FC<FriendsHubProps> = ({
                     setFriendQuery(e.target.value);
                     setAddFeedback(null);
                   }}
-                  placeholder="Enter student username (e.g. rahul_sen, priya_p)..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-surface-well border border-border-subtle rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
+                  placeholder="Enter student username or invite code (e.g. FIT-8821, priya_p)..."
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface-well border border-border-subtle rounded-xl text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-primary transition-colors font-mono"
                 />
               </div>
               <Button

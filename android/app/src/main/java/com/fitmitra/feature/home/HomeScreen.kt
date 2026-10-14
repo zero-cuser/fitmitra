@@ -34,7 +34,9 @@ fun HomeScreen(
     onNavigateToSetup: (exerciseKey: String) -> Unit,
     onNavigateToExam: () -> Unit,
     onNavigateToChallenges: () -> Unit,
-    onNavigateToProgress: () -> Unit
+    onNavigateToProgress: () -> Unit,
+    onNavigateToAccount: () -> Unit = {},
+    onNavigateToSocial: () -> Unit = {}
 ) {
     LaunchedEffect(Unit) {
         viewModel.loadStats()
@@ -71,26 +73,46 @@ fun HomeScreen(
                 )
             }
 
-            Surface(
-                color = FitMitraColors.SurfaceElevated,
-                shape = RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, FitMitraColors.BorderSubtle)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    color = FitMitraColors.SurfaceElevated,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FitMitraColors.BorderSubtle)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "LVL ${state.level}",
+                            color = FitMitraColors.PrimaryBright,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${state.totalXp} XP",
+                            color = FitMitraColors.TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    modifier = Modifier
+                        .clickable { onNavigateToAccount() }
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Open Account and Cloud Backup settings"
+                        },
+                    color = FitMitraColors.SurfaceElevated,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FitMitraColors.BorderSubtle)
                 ) {
                     Text(
-                        text = "LVL ${state.level}",
-                        color = FitMitraColors.PrimaryBright,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "${state.totalXp} XP",
-                        color = FitMitraColors.TextSecondary,
-                        fontSize = 12.sp
+                        text = "👤",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        fontSize = 14.sp
                     )
                 }
             }
@@ -342,6 +364,82 @@ fun HomeScreen(
                     )
                 }
                 Text("View ›", color = FitMitraColors.Accent, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Account & Cloud Sync Card
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Open Account and Cloud Backup settings"
+                }
+                .clickable { onNavigateToAccount() },
+            color = FitMitraColors.Surface,
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, FitMitraColors.Primary.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "☁️ Account & Cloud Sync",
+                        color = FitMitraColors.PrimaryBright,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Optional multi-device backup and account management.",
+                        color = FitMitraColors.TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+                Text("Manage ›", color = FitMitraColors.PrimaryBright, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Campus Social & Friends Card
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics {
+                    role = Role.Button
+                    contentDescription = "Open Campus Social and Friend Connections"
+                }
+                .clickable { onNavigateToSocial() },
+            color = FitMitraColors.Surface,
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, FitMitraColors.Accent.copy(alpha = 0.4f))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "👥 Campus Social & Friends",
+                        color = FitMitraColors.Accent,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Connect with hostel batchmates via private invite codes.",
+                        color = FitMitraColors.TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+                Text("Connect ›", color = FitMitraColors.Accent, fontWeight = FontWeight.Bold)
             }
         }
 

@@ -31,7 +31,10 @@ import {
   Trash2,
   AlertTriangle,
   FileText,
-  WifiOff
+  WifiOff,
+  RefreshCw,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useWorkout } from '@/context/WorkoutContext';
@@ -49,8 +52,25 @@ import {
 } from '@/utils/storageSafety';
 
 export const ProfileView: React.FC = () => {
-  const { user, isAuthenticated, openAuthModal, logout, loginAsGuest } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    openAuthModal,
+    logout,
+    loginAsGuest,
+    syncStatus,
+    enableSync,
+    disableSync,
+    syncNow,
+    deleteAccount
+  } = useAuth();
   const { soundEnabled, toggleSound, voiceCoachEnabled, toggleVoiceCoach } = useWorkout();
+
+  // Cloud Sync & Account State
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteRemoteOnly, setDeleteRemoteOnly] = useState(false);
 
   // Notification Preferences (persisted in localStorage)
   const [notifications, setNotifications] = useState({
@@ -135,6 +155,65 @@ export const ProfileView: React.FC = () => {
       wipeAllLocalData();
       refreshInventory();
       logout();
+    }
+  };
+
+  const handleToggleSync = async () => {
+    if (syncStatus.state !== 'disabled') {
+      await disableSync();
+      setPrivacyFeedback({ text: 'Cloud synchronization disabled. App is now local-only.', type: 'success' });
+      setTimeout(() => setPrivacyFeedback(null), 4000);
+    } else {
+      await enableSync({
+        consentedAt: new Date().toISOString(),
+        syncWorkouts: true,
+        syncChallenges: true,
+        syncPreferences: true
+      });
+      setPrivacyFeedback({ text: 'Cloud backup enabled! You can now sync across devices.', type: 'success' });
+      setTimeout(() => setPrivacyFeedback(null), 4000);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncNow();
+      if (res.success) {
+        setPrivacyFeedback({
+          text: `Synced ${res.syncedWorkouts} workouts and ${res.syncedChallenges} challenges with cloud.`,
+          type: 'success'
+        });
+      } else {
+        setPrivacyFeedback({
+          text: res.error || 'Failed to synchronize with server. Operating offline.',
+          type: 'danger'
+        });
+      }
+    } catch {
+      setPrivacyFeedback({ text: 'Network unreachable. Workout data saved locally.', type: 'danger' });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setPrivacyFeedback(null), 4000);
+    }
+  };
+
+  const handleConfirmAccountDeletion = async () => {
+    try {
+      const res = await deleteAccount(deletePassword, deleteRemoteOnly);
+      if (res.success) {
+        setShowDeleteModal(false);
+        setDeletePassword('');
+        setPrivacyFeedback({
+          text: deleteRemoteOnly
+            ? 'Remote cloud data deleted successfully. Local device data retained.'
+            : 'Account and all data wiped permanently.',
+          type: 'success'
+        });
+        refreshInventory();
+      }
+    } catch {
+      setPrivacyFeedback({ text: 'Failed to delete account. Please verify password.', type: 'danger' });
     }
   };
 
@@ -526,6 +605,68 @@ export const ProfileView: React.FC = () => {
             </div>
           </div>
 
+          {/* Cloud Synchronization & Multi-Device Backup */}
+          <div className="pt-3 border-t border-border-subtle space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold text-text-primary">Cloud Synchronization &amp; Multi-Device Backup</h4>
+                  <Badge
+                    color={
+                      syncStatus.state === 'synced'
+                        ? 'success'
+                        : syncStatus.state === 'syncing'
+                        ? 'primary'
+                        : syncStatus.state === 'error' || syncStatus.state === 'offline'
+                        ? 'warning'
+                        : 'secondary'
+                    }
+                  >
+                    {syncStatus.state === 'disabled'
+                      ? 'Local-Only'
+                      : syncStatus.state === 'syncing'
+                      ? 'Syncing...'
+                      : syncStatus.state === 'synced'
+                      ? 'Synced'
+                      : syncStatus.state === 'offline'
+                      ? 'Offline'
+                      : 'Error'}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-text-secondary mt-0.5">
+                  Optionally back up completed workout session counts, posture scores, and challenge milestones to your private account.
+                  Camera frames and skeletal landmarks NEVER leave your hardware.
+                </p>
+                {syncStatus.lastSyncTimestampMs && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    Last synchronized: {new Date(syncStatus.lastSyncTimestampMs).toLocaleTimeString()}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant={syncStatus.state === 'disabled' ? 'primary' : 'outline'}
+                  size="sm"
+                  onClick={handleToggleSync}
+                  leftIcon={syncStatus.state === 'disabled' ? <Cloud className="w-3.5 h-3.5" /> : <CloudOff className="w-3.5 h-3.5" />}
+                >
+                  {syncStatus.state === 'disabled' ? 'Enable Cloud Backup' : 'Disable Sync'}
+                </Button>
+                {syncStatus.state !== 'disabled' && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleSyncNow}
+                    disabled={isSyncing}
+                    leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />}
+                  >
+                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Data Export & Granular Deletion Controls */}
           <div className="pt-3 border-t border-border-subtle space-y-3">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -569,6 +710,14 @@ export const ProfileView: React.FC = () => {
                   className="text-xs"
                 >
                   Clear Meal Logs
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="text-xs text-danger border-danger/30 hover:bg-danger/10"
+                >
+                  Delete Cloud Account
                 </Button>
                 <Button
                   variant="danger"
@@ -778,6 +927,69 @@ export const ProfileView: React.FC = () => {
           </Button>
         </Card>
       </div>
+
+      {/* Account Deletion Dialog Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-surface-card border border-danger/30 shadow-2xl space-y-4">
+            <div className="flex items-center space-x-2 text-danger">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <h3 className="text-base font-bold text-text-primary">Delete FitMitra Account</h3>
+            </div>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              This action permanently purges your account records from the server. Please choose your data deletion policy:
+            </p>
+
+            <div className="space-y-2 p-3 rounded-xl bg-surface-well border border-border-subtle text-xs">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteType"
+                  checked={deleteRemoteOnly}
+                  onChange={() => setDeleteRemoteOnly(true)}
+                  className="accent-primary"
+                />
+                <span className="text-text-primary font-medium">Delete remote cloud records only (keep local device data)</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteType"
+                  checked={!deleteRemoteOnly}
+                  onChange={() => setDeleteRemoteOnly(false)}
+                  className="accent-danger"
+                />
+                <span className="text-danger font-medium">Wipe everything (both remote cloud and local device)</span>
+              </label>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold text-text-muted uppercase">Enter Password to Confirm</label>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Account password"
+                className="w-full px-3 py-2 rounded-xl bg-surface-well border border-border-subtle text-xs text-text-primary focus:outline-none focus:border-danger"
+              />
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmAccountDeletion}
+                disabled={!deletePassword}
+              >
+                Confirm Account Deletion
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -8,11 +8,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fitmitra.core.domain.models.ExerciseKey
+import com.fitmitra.core.domain.workouts.WorkoutRepository
 import com.fitmitra.core.platform.android.AndroidAudioPlayer
 import com.fitmitra.core.platform.android.AndroidSpeechProvider
 import com.fitmitra.core.platform.android.DataStoreAppStorage
+import com.fitmitra.core.platform.android.RemoteAuthRepository
+import com.fitmitra.core.platform.android.RemoteSocialRepository
+import com.fitmitra.core.platform.android.RemoteSyncRepository
 import com.fitmitra.core.theme.FitMitraAppTheme
 import com.fitmitra.core.theme.FitMitraColors
+import com.fitmitra.feature.account.AccountScreen
+import com.fitmitra.feature.account.AccountViewModel
+import com.fitmitra.feature.social.SocialScreen
+import com.fitmitra.feature.social.SocialViewModel
 import com.fitmitra.feature.challenges.ChallengesScreen
 import com.fitmitra.feature.challenges.ChallengesViewModel
 import com.fitmitra.feature.completion.CompletionScreen
@@ -34,6 +42,10 @@ fun FitMitraApp() {
     val navState = remember { AppNavigationState() }
 
     val storage = remember { DataStoreAppStorage(context) }
+    val workoutRepo = remember { WorkoutRepository(storage) }
+    val authRepo = remember { RemoteAuthRepository(storage) }
+    val syncRepo = remember { RemoteSyncRepository(storage, workoutRepo) }
+    val socialRepo = remember { RemoteSocialRepository(storage) }
     val audioPlayer = remember { AndroidAudioPlayer() }
     val speechProvider = remember { AndroidSpeechProvider(context) }
 
@@ -62,7 +74,9 @@ fun FitMitraApp() {
                         onNavigateToSetup = { key -> navState.navigateTo(Screen.WorkoutSetup(key)) },
                         onNavigateToExam = { navState.navigateTo(Screen.Exam) },
                         onNavigateToChallenges = { navState.navigateTo(Screen.Challenges) },
-                        onNavigateToProgress = { navState.navigateTo(Screen.Progress) }
+                        onNavigateToProgress = { navState.navigateTo(Screen.Progress) },
+                        onNavigateToAccount = { navState.navigateTo(Screen.Account) },
+                        onNavigateToSocial = { navState.navigateTo(Screen.Social) }
                     )
                 }
 
@@ -152,6 +166,22 @@ fun FitMitraApp() {
                         viewModel = challengesVm,
                         onBack = { navState.popBack() },
                         onStartWorkoutForChallenge = { navState.navigateTo(Screen.WorkoutSetup("SQUATS", 20)) }
+                    )
+                }
+
+                is Screen.Account -> {
+                    val accountVm = remember { AccountViewModel(authRepo, syncRepo) }
+                    AccountScreen(
+                        viewModel = accountVm,
+                        onBack = { navState.popBack() }
+                    )
+                }
+
+                is Screen.Social -> {
+                    val socialVm = remember { SocialViewModel(socialRepo) }
+                    SocialScreen(
+                        viewModel = socialVm,
+                        onBack = { navState.popBack() }
                     )
                 }
             }

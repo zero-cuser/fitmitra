@@ -5,6 +5,8 @@
  */
 
 export * from './models/account.ts';
+export * from './models/sync.ts';
+export * from './models/social.ts';
 export * from './models/domainTypes.ts';
 export * from './exercises/exerciseCatalog.ts';
 export * from './workouts/workoutRules.ts';
@@ -19,4 +21,6 @@ export * from './repositories/interfaces.ts';
 export * from './repositories/localWorkoutHistoryRepository.ts';
 export * from './repositories/localChallengeRepository.ts';
 export * from './repositories/localUserRepository.ts';
+export * from './repositories/localAuthRepository.ts';
+export * from './repositories/localSyncRepository.ts';
 export * from './featureFlags.ts';

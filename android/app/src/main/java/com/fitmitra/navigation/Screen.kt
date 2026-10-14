@@ -21,6 +21,8 @@ sealed interface Screen {
     data object Progress : Screen
     data object Exam : Screen
     data object Challenges : Screen
+    data object Account : Screen
+    data object Social : Screen
 }
 
 class AppNavigationState(initial: Screen = Screen.Home) {

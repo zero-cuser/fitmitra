@@ -56,12 +56,12 @@ export const AuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (authModalTab === 'signup') {
-      const res = signup(name, username, email, password, selectedGoals, {
+      const res = await signup(name, username, email, password, selectedGoals, {
         age,
         gender,
         heightCm,
@@ -77,7 +77,7 @@ export const AuthModal: React.FC = () => {
         setPassword('');
       }
     } else {
-      const res = login(email, password);
+      const res = await login(email, password);
       if (!res.success) {
         setError(res.error || 'Failed to sign in.');
       } else {
