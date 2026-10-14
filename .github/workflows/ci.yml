@@ -47,7 +47,7 @@ jobs:
       - name: Install PostgreSQL client tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-15
+          sudo apt-get install -y -qq postgresql-client
 
       - name: Verify PostgreSQL readiness
         run: |
