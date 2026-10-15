@@ -308,4 +308,148 @@ describe('Storage Safety & Privacy Architecture', () => {
       assert.equal(workoutItem?.exists, true);
     });
   });
+
+  describe('Privacy Hardening & Regression Suite', () => {
+    it('table-driven wipeAllLocalData purges all 25 registered STORAGE_KEYS and preserves unrelated keys', () => {
+      // 1. Populate every registered key in STORAGE_KEYS
+      const allRegisteredKeys = Object.values(STORAGE_KEYS);
+      assert.equal(allRegisteredKeys.length, 25, 'STORAGE_KEYS must define exactly 25 canonical keys');
+
+      allRegisteredKeys.forEach((key, index) => {
+        mockStorage.setItem(key, JSON.stringify({ index, registeredKey: key }));
+      });
+
+      // 2. Set varied unrelated keys (including adjacent prefixes)
+      const unrelatedKeys = [
+        'unrelated_app_data',
+        'fitmitrade_stocks_portfolio',
+        'fitmitrailer_config_v2',
+        'fitness_tracker_log',
+        'my_fitmitra_backup_archive'
+      ];
+      unrelatedKeys.forEach((key, i) => {
+        mockStorage.setItem(key, `safe_unrelated_value_${i}`);
+      });
+
+      // 3. Execute wipe
+      const wiped = wipeAllLocalData();
+      assert.equal(wiped, true);
+
+      // 4. Verify all 25 registered keys are completely purged
+      allRegisteredKeys.forEach((key) => {
+        assert.equal(
+          mockStorage.getItem(key),
+          null,
+          `Registered key "${key}" must be removed by wipeAllLocalData`
+        );
+      });
+
+      // 5. Verify all unrelated keys remain intact
+      unrelatedKeys.forEach((key, i) => {
+        assert.equal(
+          mockStorage.getItem(key),
+          `safe_unrelated_value_${i}`,
+          `Unrelated key "${key}" must be preserved`
+        );
+      });
+    });
+
+    it('idempotence: wipe and granular clearing operations succeed repeatedly on empty or wiped storage', () => {
+      // Repeated wipeAllLocalData
+      assert.equal(wipeAllLocalData(), true);
+      assert.equal(wipeAllLocalData(), true);
+
+      // Repeated clearWorkoutHistory
+      assert.equal(clearWorkoutHistory(), true);
+      assert.equal(clearWorkoutHistory(), true);
+
+      // Repeated clearNutritionHistory
+      assert.equal(clearNutritionHistory(), true);
+      assert.equal(clearNutritionHistory(), true);
+    });
+
+    it('comprehensive granular isolation: clearWorkoutHistory wipes all workout & sync queues while preserving identity, nutrition, and friends', () => {
+      // Populate comprehensive mixed state
+      mockStorage.setItem(STORAGE_KEYS.USER_V3, JSON.stringify({ name: 'Student Aarav', id: 'usr_101' }));
+      mockStorage.setItem(STORAGE_KEYS.AUTH_STATUS_V3, 'authenticated');
+      mockStorage.setItem(STORAGE_KEYS.FRIENDS_V3, JSON.stringify([{ id: 'f_1', name: 'Rohan' }]));
+      mockStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify({ hydrationReminders: true }));
+      mockStorage.setItem(STORAGE_KEYS.NUTRITION_V3, JSON.stringify([{ meal: 'Hostel Thali', cals: 650 }]));
+      mockStorage.setItem(STORAGE_KEYS.NUTRITION, JSON.stringify([{ meal: 'Legacy Dal', cals: 300 }]));
+      mockStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, 'jwt_token_secret');
+      mockStorage.setItem(STORAGE_KEYS.AUTH_SESSION, 'sess_active_123');
+      mockStorage.setItem(STORAGE_KEYS.SYNC_CONSENT, JSON.stringify({ syncWorkouts: true }));
+      mockStorage.setItem(STORAGE_KEYS.WORKOUT_V3, JSON.stringify({ currentStreak: 5, totalXp: 450 }));
+      mockStorage.setItem(STORAGE_KEYS.CALORIES_WEEK_V3, JSON.stringify([{ day: 'Mon', caloriesBurned: 350 }]));
+      mockStorage.setItem(STORAGE_KEYS.WATER_V3, '2200');
+      mockStorage.setItem(STORAGE_KEYS.WORKOUT, JSON.stringify({ legacyProgress: 10 }));
+      mockStorage.setItem(STORAGE_KEYS.CALORIES_WEEK, JSON.stringify([{ day: 'Sun', caloriesBurned: 200 }]));
+      mockStorage.setItem(STORAGE_KEYS.WATER, '1800');
+      mockStorage.setItem(STORAGE_KEYS.EXAM_SESSIONS, JSON.stringify([{ session: 'Midsem Break' }]));
+      mockStorage.setItem(STORAGE_KEYS.CHALLENGE_PROGRESS, JSON.stringify({ challenge_1: { completed: true } }));
+      mockStorage.setItem(STORAGE_KEYS.WORKOUT_SESSIONS, JSON.stringify([{ id: 'ws_1', exercise: 'squats' }]));
+      mockStorage.setItem(STORAGE_KEYS.PENDING_SYNC_QUEUE, JSON.stringify(['ws_1']));
+
+      // 1. Clear workout history
+      const workoutClearSuccess = clearWorkoutHistory();
+      assert.equal(workoutClearSuccess, true);
+
+      // Verify all workout-related items are null
+      const workoutRelatedKeys = [
+        STORAGE_KEYS.WORKOUT_V3,
+        STORAGE_KEYS.CALORIES_WEEK_V3,
+        STORAGE_KEYS.WATER_V3,
+        STORAGE_KEYS.WORKOUT,
+        STORAGE_KEYS.CALORIES_WEEK,
+        STORAGE_KEYS.WATER,
+        STORAGE_KEYS.EXAM_SESSIONS,
+        STORAGE_KEYS.CHALLENGE_PROGRESS,
+        STORAGE_KEYS.WORKOUT_SESSIONS,
+        STORAGE_KEYS.PENDING_SYNC_QUEUE
+      ];
+      workoutRelatedKeys.forEach((k) => {
+        assert.equal(mockStorage.getItem(k), null, `Workout key "${k}" should be removed`);
+      });
+
+      // Verify identity, auth, nutrition, and friends are strictly preserved
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.USER_V3), 'USER_V3 must be preserved');
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.AUTH_STATUS_V3), 'authenticated');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.FRIENDS_V3), 'FRIENDS_V3 must be preserved');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.NOTIFICATIONS), 'NOTIFICATIONS must be preserved');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.NUTRITION_V3), 'NUTRITION_V3 must be preserved');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.NUTRITION), 'NUTRITION must be preserved');
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.AUTH_TOKEN), 'jwt_token_secret');
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.AUTH_SESSION), 'sess_active_123');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.SYNC_CONSENT), 'SYNC_CONSENT must be preserved');
+
+      // 2. Clear nutrition history on the remaining state
+      const nutritionClearSuccess = clearNutritionHistory();
+      assert.equal(nutritionClearSuccess, true);
+
+      // Nutrition keys wiped
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.NUTRITION_V3), null);
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.NUTRITION), null);
+
+      // Identity, auth, and friends still intact
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.USER_V3));
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.AUTH_STATUS_V3), 'authenticated');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.FRIENDS_V3));
+      assert.equal(mockStorage.getItem(STORAGE_KEYS.AUTH_TOKEN), 'jwt_token_secret');
+    });
+
+    it('graceful export resilience: exportAllUserData survives corrupted JSON without crashing', () => {
+      mockStorage.setItem(STORAGE_KEYS.USER_V3, JSON.stringify({ id: 'usr_valid', name: 'Aarav' }));
+      mockStorage.setItem(STORAGE_KEYS.AUTH_STATUS_V3, 'authenticated');
+      mockStorage.setItem(STORAGE_KEYS.WORKOUT_V3, '{ malformed: json, unclosed... ');
+      mockStorage.setItem(STORAGE_KEYS.NUTRITION_V3, JSON.stringify([{ meal: 'Hostel Dal' }]));
+
+      const exported = exportAllUserData();
+      assert.equal(exported.version, 1);
+      assert.equal(typeof exported.exportedAt, 'string');
+      assert.deepEqual(exported.data.userProfile, { id: 'usr_valid', name: 'Aarav' });
+      assert.equal(exported.data.authStatus, 'authenticated');
+      assert.equal(exported.data.workoutProgress, null, 'Malformed JSON must safely fall back to null');
+      assert.deepEqual(exported.data.loggedMeals, [{ meal: 'Hostel Dal' }]);
+    });
+  });
 });
