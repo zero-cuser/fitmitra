@@ -17,7 +17,23 @@ export const STORAGE_KEYS = {
   NOTIFICATIONS: 'fitmitra_notification_prefs',
   EXAM_SESSIONS: 'fitmitra_exam_sessions',
   CHALLENGE_PROGRESS: 'fitmitra_challenge_progress',
-  SCHEMA_VERSION: 'fitmitra_storage_version'
+  SCHEMA_VERSION: 'fitmitra_storage_version',
+  // Active production V3 keys
+  USER_V3: 'FITMITRA_AUTH_USER_V3',
+  AUTH_STATUS_V3: 'FITMITRA_AUTH_STATUS_V3',
+  FRIENDS_V3: 'FITMITRA_FRIENDS_V3',
+  WORKOUT_V3: 'FITMITRA_WORKOUT_PROGRESS_V3',
+  NUTRITION_V3: 'FITMITRA_NUTRITION_V3',
+  CALORIES_WEEK_V3: 'FITMITRA_CALORIES_WEEK_V3',
+  WATER_V3: 'FITMITRA_WATER_V3',
+  // Sync and session keys
+  WORKOUT_SESSIONS: 'fitmitra_workout_sessions_v1',
+  AUTH_TOKEN: 'fitmitra_auth_token_v1',
+  AUTH_SESSION: 'fitmitra_auth_session_v1',
+  SYNC_CONSENT: 'fitmitra_sync_consent_v1',
+  SYNC_RETRY_COUNT: 'fitmitra_sync_retry_count_v1',
+  PENDING_SYNC_QUEUE: 'fitmitra_pending_sync_queue_v1',
+  LAST_SYNC_TS: 'fitmitra_last_sync_timestamp_v1'
 } as const;
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
@@ -143,22 +159,35 @@ export function safeRemoveItem(key: string): boolean {
 export function getStorageInventory(): StorageInventoryItem[] {
   if (!isStorageAvailable()) return [];
 
-  const items: { key: string; label: string; category: StorageInventoryItem['category'] }[] = [
-    { key: STORAGE_KEYS.USER, label: 'User Identity & Biometrics', category: 'identity' },
-    { key: STORAGE_KEYS.AUTH_STATUS, label: 'Session Authentication Status', category: 'identity' },
-    { key: STORAGE_KEYS.WORKOUT, label: 'Current Workout Session State', category: 'workout' },
-    { key: STORAGE_KEYS.CALORIES_WEEK, label: 'Weekly Calorie & Active Days History', category: 'workout' },
-    { key: STORAGE_KEYS.WATER, label: 'Daily Water Hydration Tracker', category: 'nutrition' },
-    { key: STORAGE_KEYS.NUTRITION, label: 'Logged Meals & Nutrition History', category: 'nutrition' },
-    { key: STORAGE_KEYS.FRIENDS, label: 'Campus Friends & Peer Stats', category: 'preferences' },
-    { key: STORAGE_KEYS.NOTIFICATIONS, label: 'Notification & Reminder Preferences', category: 'preferences' },
-    { key: STORAGE_KEYS.EXAM_SESSIONS, label: 'Exam Mode & Study Break Sessions', category: 'workout' },
-    { key: STORAGE_KEYS.CHALLENGE_PROGRESS, label: 'Campus Challenge Progress', category: 'workout' }
+  const inventoryDefs: {
+    primaryKey: string;
+    fallbackKey?: string;
+    label: string;
+    category: StorageInventoryItem['category'];
+  }[] = [
+    { primaryKey: STORAGE_KEYS.USER_V3, fallbackKey: STORAGE_KEYS.USER, label: 'User Identity & Biometrics', category: 'identity' },
+    { primaryKey: STORAGE_KEYS.AUTH_STATUS_V3, fallbackKey: STORAGE_KEYS.AUTH_STATUS, label: 'Session Authentication Status', category: 'identity' },
+    { primaryKey: STORAGE_KEYS.WORKOUT_V3, fallbackKey: STORAGE_KEYS.WORKOUT, label: 'Current Workout Session State', category: 'workout' },
+    { primaryKey: STORAGE_KEYS.CALORIES_WEEK_V3, fallbackKey: STORAGE_KEYS.CALORIES_WEEK, label: 'Weekly Calorie & Active Days History', category: 'workout' },
+    { primaryKey: STORAGE_KEYS.WATER_V3, fallbackKey: STORAGE_KEYS.WATER, label: 'Daily Water Hydration Tracker', category: 'nutrition' },
+    { primaryKey: STORAGE_KEYS.NUTRITION_V3, fallbackKey: STORAGE_KEYS.NUTRITION, label: 'Logged Meals & Nutrition History', category: 'nutrition' },
+    { primaryKey: STORAGE_KEYS.FRIENDS_V3, fallbackKey: STORAGE_KEYS.FRIENDS, label: 'Campus Friends & Peer Stats', category: 'preferences' },
+    { primaryKey: STORAGE_KEYS.NOTIFICATIONS, label: 'Notification & Reminder Preferences', category: 'preferences' },
+    { primaryKey: STORAGE_KEYS.EXAM_SESSIONS, label: 'Exam Mode & Study Break Sessions', category: 'workout' },
+    { primaryKey: STORAGE_KEYS.CHALLENGE_PROGRESS, label: 'Campus Challenge Progress', category: 'workout' },
+    { primaryKey: STORAGE_KEYS.WORKOUT_SESSIONS, label: 'Completed Workout History Log', category: 'workout' }
   ];
 
-  return items.map(({ key, label, category }) => {
+  return inventoryDefs.map(({ primaryKey, fallbackKey, label, category }) => {
     try {
-      const raw = window.localStorage.getItem(key);
+      const activeKey =
+        window.localStorage.getItem(primaryKey) !== null
+          ? primaryKey
+          : (fallbackKey && window.localStorage.getItem(fallbackKey) !== null)
+            ? fallbackKey
+            : (fallbackKey || primaryKey);
+
+      const raw = window.localStorage.getItem(activeKey);
       const exists = raw !== null;
       const sizeBytes = raw ? new Blob([raw]).size : 0;
       let itemCount: number | undefined;
@@ -176,9 +205,9 @@ export function getStorageInventory(): StorageInventoryItem[] {
         }
       }
 
-      return { key, label, category, exists, sizeBytes, itemCount };
+      return { key: activeKey, label, category, exists, sizeBytes, itemCount };
     } catch {
-      return { key, label, category, exists: false, sizeBytes: 0 };
+      return { key: primaryKey, label, category, exists: false, sizeBytes: 0 };
     }
   });
 }
@@ -192,13 +221,13 @@ export function exportAllUserData(): UserDataExportPayload {
     exportedAt: new Date().toISOString(),
     source: 'FitMitra Client-Side Privacy Center',
     data: {
-      userProfile: safeGetItem(STORAGE_KEYS.USER),
-      authStatus: safeGetItem(STORAGE_KEYS.AUTH_STATUS),
-      workoutProgress: safeGetItem(STORAGE_KEYS.WORKOUT),
-      dailyCalorieHistory: safeGetItem(STORAGE_KEYS.CALORIES_WEEK),
-      loggedMeals: safeGetItem(STORAGE_KEYS.NUTRITION),
-      waterToday: safeGetItem(STORAGE_KEYS.WATER),
-      friends: safeGetItem(STORAGE_KEYS.FRIENDS),
+      userProfile: safeGetItem(STORAGE_KEYS.USER_V3) ?? safeGetItem(STORAGE_KEYS.USER),
+      authStatus: safeGetItem(STORAGE_KEYS.AUTH_STATUS_V3) ?? safeGetItem(STORAGE_KEYS.AUTH_STATUS),
+      workoutProgress: safeGetItem(STORAGE_KEYS.WORKOUT_V3) ?? safeGetItem(STORAGE_KEYS.WORKOUT),
+      dailyCalorieHistory: safeGetItem(STORAGE_KEYS.CALORIES_WEEK_V3) ?? safeGetItem(STORAGE_KEYS.CALORIES_WEEK),
+      loggedMeals: safeGetItem(STORAGE_KEYS.NUTRITION_V3) ?? safeGetItem(STORAGE_KEYS.NUTRITION),
+      waterToday: safeGetItem(STORAGE_KEYS.WATER_V3) ?? safeGetItem(STORAGE_KEYS.WATER),
+      friends: safeGetItem(STORAGE_KEYS.FRIENDS_V3) ?? safeGetItem(STORAGE_KEYS.FRIENDS),
       notificationPreferences: safeGetItem(STORAGE_KEYS.NOTIFICATIONS),
       examSessions: safeGetItem(STORAGE_KEYS.EXAM_SESSIONS),
       challengeProgress: safeGetItem(STORAGE_KEYS.CHALLENGE_PROGRESS)
@@ -213,11 +242,19 @@ export function exportAllUserData(): UserDataExportPayload {
  */
 export function clearWorkoutHistory(): boolean {
   try {
+    // Clear active V3 workout & calorie records
+    safeRemoveItem(STORAGE_KEYS.CALORIES_WEEK_V3);
+    safeRemoveItem(STORAGE_KEYS.WORKOUT_V3);
+    safeRemoveItem(STORAGE_KEYS.WATER_V3);
+    // Clear legacy storage keys
     safeRemoveItem(STORAGE_KEYS.CALORIES_WEEK);
     safeRemoveItem(STORAGE_KEYS.WORKOUT);
     safeRemoveItem(STORAGE_KEYS.WATER);
     safeRemoveItem(STORAGE_KEYS.EXAM_SESSIONS);
     safeRemoveItem(STORAGE_KEYS.CHALLENGE_PROGRESS);
+    // Clear sync workout history logs
+    safeRemoveItem(STORAGE_KEYS.WORKOUT_SESSIONS);
+    safeRemoveItem(STORAGE_KEYS.PENDING_SYNC_QUEUE);
     return true;
   } catch (e) {
     console.error('Failed to clear workout history:', e);
@@ -230,6 +267,7 @@ export function clearWorkoutHistory(): boolean {
  */
 export function clearNutritionHistory(): boolean {
   try {
+    safeRemoveItem(STORAGE_KEYS.NUTRITION_V3);
     safeRemoveItem(STORAGE_KEYS.NUTRITION);
     return true;
   } catch (e) {
@@ -240,21 +278,23 @@ export function clearNutritionHistory(): boolean {
 
 /**
  * Completely wipes all FitMitra keys from LocalStorage.
+ * Case-insensitively purges all active V3, sync, and legacy fitmitra keys.
  * Returns true if successful.
  */
 export function wipeAllLocalData(): boolean {
   if (!isStorageAvailable()) return false;
 
   try {
+    // 1. Remove all explicit known registered storage keys
     Object.values(STORAGE_KEYS).forEach((k) => {
       window.localStorage.removeItem(k);
     });
 
-    // Also remove any miscellaneous legacy keys starting with fitmitra_
+    // 2. Case-insensitive sweep for all FitMitra keys (FITMITRA_*_V3, fitmitra_*, etc.)
     const keysToRemove: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
-      if (key && key.startsWith('fitmitra_')) {
+      if (key && key.toLowerCase().startsWith('fitmitra_')) {
         keysToRemove.push(key);
       }
     }

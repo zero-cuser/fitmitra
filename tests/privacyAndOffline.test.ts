@@ -187,5 +187,125 @@ describe('Storage Safety & Privacy Architecture', () => {
       // Unrelated storage remains untouched
       assert.equal(mockStorage.getItem('unrelated_key'), 'keep_me');
     });
+
+    it('wipeAllLocalData purges active production V3 keys case-insensitively', () => {
+      mockStorage.setItem('FITMITRA_AUTH_USER_V3', JSON.stringify({ name: 'Student Aarav', email: 'aarav@hostel.edu' }));
+      mockStorage.setItem('FITMITRA_AUTH_STATUS_V3', 'authenticated');
+      mockStorage.setItem('FITMITRA_FRIENDS_V3', JSON.stringify([{ id: 'f1', name: 'Rohan' }]));
+      mockStorage.setItem('FITMITRA_WORKOUT_PROGRESS_V3', JSON.stringify({ xp: 450, streakDays: 12 }));
+      mockStorage.setItem('FITMITRA_NUTRITION_V3', JSON.stringify([{ meal: 'Mess Dal' }]));
+      mockStorage.setItem('FITMITRA_CALORIES_WEEK_V3', JSON.stringify([{ day: 'Fri', burned: 350 }]));
+      mockStorage.setItem('FITMITRA_WATER_V3', '2500');
+      mockStorage.setItem('fitmitra_workout_sessions_v1', JSON.stringify([{ id: 's1', reps: 25 }]));
+      mockStorage.setItem('fitmitra_auth_token_v1', 'secret_jwt_token');
+      mockStorage.setItem('unrelated_app_key', 'do_not_delete');
+
+      const success = wipeAllLocalData();
+      assert.equal(success, true);
+
+      assert.equal(mockStorage.getItem('FITMITRA_AUTH_USER_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_AUTH_STATUS_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_FRIENDS_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_WORKOUT_PROGRESS_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_NUTRITION_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_CALORIES_WEEK_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_WATER_V3'), null);
+      assert.equal(mockStorage.getItem('fitmitra_workout_sessions_v1'), null);
+      assert.equal(mockStorage.getItem('fitmitra_auth_token_v1'), null);
+      assert.equal(mockStorage.getItem('unrelated_app_key'), 'do_not_delete');
+    });
+
+    it('wipeAllLocalData preserves keys that merely share prefix text without the fitmitra_ delimiter', () => {
+      mockStorage.setItem('fitmitrade_holdings', 'shares_100');
+      mockStorage.setItem('fitmitrailer_config', 'trailer_active');
+      mockStorage.setItem('fitness_tracker_data', 'steps_5000');
+      mockStorage.setItem('unrelated_app_key', 'keep_safe');
+      mockStorage.setItem('FITMITRA_AUTH_USER_V3', JSON.stringify({ name: 'Aarav' }));
+      mockStorage.setItem('fitmitra_last_sync_timestamp_v1', '1720000000000');
+      mockStorage.setItem('fitmitra_auth_token_v1', 'token_to_purge');
+
+      const success = wipeAllLocalData();
+      assert.equal(success, true);
+
+      // FitMitra keys purged
+      assert.equal(mockStorage.getItem('FITMITRA_AUTH_USER_V3'), null);
+      assert.equal(mockStorage.getItem('fitmitra_last_sync_timestamp_v1'), null);
+      assert.equal(mockStorage.getItem('fitmitra_auth_token_v1'), null);
+
+      // Unrelated keys with similar prefixes preserved
+      assert.equal(mockStorage.getItem('fitmitrade_holdings'), 'shares_100');
+      assert.equal(mockStorage.getItem('fitmitrailer_config'), 'trailer_active');
+      assert.equal(mockStorage.getItem('fitness_tracker_data'), 'steps_5000');
+      assert.equal(mockStorage.getItem('unrelated_app_key'), 'keep_safe');
+    });
+
+    it('clearWorkoutHistory purges active V3 workout, calorie, water, and workout session records', () => {
+      mockStorage.setItem('FITMITRA_AUTH_USER_V3', JSON.stringify({ name: 'Aarav' }));
+      mockStorage.setItem('FITMITRA_WORKOUT_PROGRESS_V3', JSON.stringify({ xp: 500, streakDays: 7 }));
+      mockStorage.setItem('FITMITRA_CALORIES_WEEK_V3', JSON.stringify([{ day: 'Tue', caloriesBurned: 320 }]));
+      mockStorage.setItem('FITMITRA_WATER_V3', '2000');
+      mockStorage.setItem('fitmitra_workout_sessions_v1', JSON.stringify([{ id: 'w1', exerciseKey: 'squats' }]));
+      mockStorage.setItem('FITMITRA_NUTRITION_V3', JSON.stringify([{ meal: 'Hostel Thali' }]));
+
+      const success = clearWorkoutHistory();
+      assert.equal(success, true);
+
+      // Workouts, calories, water, and sessions must be wiped
+      assert.equal(mockStorage.getItem('FITMITRA_WORKOUT_PROGRESS_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_CALORIES_WEEK_V3'), null);
+      assert.equal(mockStorage.getItem('FITMITRA_WATER_V3'), null);
+      assert.equal(mockStorage.getItem('fitmitra_workout_sessions_v1'), null);
+
+      // Profile and nutrition must be preserved
+      assert.ok(mockStorage.getItem('FITMITRA_AUTH_USER_V3'));
+      assert.ok(mockStorage.getItem('FITMITRA_NUTRITION_V3'));
+    });
+
+    it('clearNutritionHistory purges active V3 nutrition meals while preserving workouts and profile', () => {
+      mockStorage.setItem('FITMITRA_AUTH_USER_V3', JSON.stringify({ name: 'Aarav' }));
+      mockStorage.setItem('FITMITRA_NUTRITION_V3', JSON.stringify([{ meal: 'Mess Paneer' }]));
+      mockStorage.setItem('FITMITRA_WORKOUT_PROGRESS_V3', JSON.stringify({ xp: 300 }));
+
+      const success = clearNutritionHistory();
+      assert.equal(success, true);
+
+      assert.equal(mockStorage.getItem('FITMITRA_NUTRITION_V3'), null);
+      assert.ok(mockStorage.getItem('FITMITRA_AUTH_USER_V3'));
+      assert.ok(mockStorage.getItem('FITMITRA_WORKOUT_PROGRESS_V3'));
+    });
+
+    it('exportAllUserData aggregates active production V3 data faithfully', () => {
+      mockStorage.setItem('FITMITRA_AUTH_USER_V3', JSON.stringify({ id: 'usr_v3', name: 'Aarav V3' }));
+      mockStorage.setItem('FITMITRA_AUTH_STATUS_V3', 'authenticated');
+      mockStorage.setItem('FITMITRA_WORKOUT_PROGRESS_V3', JSON.stringify({ xp: 1200, streakDays: 14 }));
+      mockStorage.setItem('FITMITRA_NUTRITION_V3', JSON.stringify([{ meal: 'Mess Roti' }]));
+      mockStorage.setItem('FITMITRA_CALORIES_WEEK_V3', JSON.stringify([{ day: 'Mon', caloriesBurned: 400 }]));
+      mockStorage.setItem('FITMITRA_WATER_V3', '3000');
+      mockStorage.setItem('FITMITRA_FRIENDS_V3', JSON.stringify([{ id: 'f2', name: 'Vikram' }]));
+
+      const exported = exportAllUserData();
+      assert.deepEqual(exported.data.userProfile, { id: 'usr_v3', name: 'Aarav V3' });
+      assert.equal(exported.data.authStatus, 'authenticated');
+      assert.deepEqual(exported.data.workoutProgress, { xp: 1200, streakDays: 14 });
+      assert.deepEqual(exported.data.loggedMeals, [{ meal: 'Mess Roti' }]);
+      assert.deepEqual(exported.data.dailyCalorieHistory, [{ day: 'Mon', caloriesBurned: 400 }]);
+      assert.equal(exported.data.waterToday, 3000);
+      assert.deepEqual(exported.data.friends, [{ id: 'f2', name: 'Vikram' }]);
+    });
+
+    it('getStorageInventory detects active V3 storage items', () => {
+      mockStorage.setItem('FITMITRA_AUTH_USER_V3', JSON.stringify({ id: 'usr_1', name: 'Test' }));
+      mockStorage.setItem('FITMITRA_WORKOUT_PROGRESS_V3', JSON.stringify({ xp: 100 }));
+
+      const inventory = getStorageInventory();
+      const userItem = inventory.find(i => i.key === 'FITMITRA_AUTH_USER_V3');
+      assert.ok(userItem);
+      assert.equal(userItem?.exists, true);
+      assert.ok(userItem?.sizeBytes && userItem.sizeBytes > 0);
+
+      const workoutItem = inventory.find(i => i.key === 'FITMITRA_WORKOUT_PROGRESS_V3');
+      assert.ok(workoutItem);
+      assert.equal(workoutItem?.exists, true);
+    });
   });
 });
