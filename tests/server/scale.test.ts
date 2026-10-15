@@ -105,11 +105,13 @@ describe('Phase 14 Reliability: Performance & Scale Tests', () => {
     const baseWorkouts = [];
     const baseTime = Date.now() - 100000;
     for (let i = 0; i < 10; i++) {
+      const itemTimestamp = new Date(baseTime + i * 1000).toISOString();
       baseWorkouts.push({
         id: `work_base_${i}`,
         exerciseKey: 'squats',
         reps: 15,
-        timestamp: new Date(baseTime + i * 1000).toISOString()
+        timestamp: itemTimestamp,
+        updatedAt: itemTimestamp
       });
     }
 
@@ -119,15 +121,16 @@ describe('Phase 14 Reliability: Performance & Scale Tests', () => {
       body: JSON.stringify({ workouts: baseWorkouts })
     });
 
+    // Ensure timestamp boundary margin
+    await new Promise((r) => setTimeout(r, 50));
     const checkpointTimestamp = new Date().toISOString();
-
-    // Small delay to ensure timestamp boundary
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 50));
 
     // 2. Add 2 new workouts
+    const nowTimestamp = new Date().toISOString();
     const newWorkouts = [
-      { id: 'work_new_1', exerciseKey: 'lunges', reps: 12, timestamp: new Date().toISOString() },
-      { id: 'work_new_2', exerciseKey: 'plank', reps: 1, timestamp: new Date().toISOString() }
+      { id: 'work_new_1', exerciseKey: 'lunges', reps: 12, timestamp: nowTimestamp, updatedAt: nowTimestamp },
+      { id: 'work_new_2', exerciseKey: 'plank', reps: 1, timestamp: nowTimestamp, updatedAt: nowTimestamp }
     ];
 
     await fetch(`${instance.url}/api/v1/sync/push`, {
