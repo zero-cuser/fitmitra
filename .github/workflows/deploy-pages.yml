@@ -1,0 +1,88 @@
+name: Deploy FitMitra to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: 'pages-deployment'
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+
+      - name: Install dependencies (clean install from lockfile)
+        run: npm ci
+
+      - name: Run Account Deletion Regression Tests
+        run: node --test tests/accountDeletionFailureHandling.test.ts
+        env:
+          NODE_ENV: test
+
+      - name: Run Privacy & Storage Safety Tests
+        run: node --test tests/privacyAndOffline.test.ts
+        env:
+          NODE_ENV: test
+
+      - name: Run TypeScript Strict Type Verification
+        run: npx tsc --noEmit
+
+      - name: Run Web Client Production Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Verify Static Export Integrity & .nojekyll
+        run: |
+          touch out/.nojekyll
+          test -f out/.nojekyll
+          test -f out/index.html
+          test -f out/404.html
+          test -d out/_next/static
+          echo "Static export verified successfully. Output contents:"
+          ls -la out
+
+      - name: Verify Account Deletion UI Bundle
+        run: |
+          grep -rq "Delete Cloud Account" out/_next/static/
+          grep -rq "Account and all data wiped permanently" out/_next/static/
+          echo "Verified: Current account deletion UX is present in generated static bundles."
+
+      - name: Deploy to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+          publish_branch: gh-pages
+          commit_message: "deploy: publish ${{ github.sha }} to GitHub Pages"
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Report Deployment Metadata
+        run: |
+          echo "=========================================="
+          echo "FitMitra GitHub Pages Deployment Complete"
+          echo "Source Commit SHA: ${{ github.sha }}"
+          echo "Target Branch: gh-pages"
+          echo "Timestamp: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          echo "Deployment URL: https://zero-cuser.github.io/fitmitra/"
+          echo "=========================================="
