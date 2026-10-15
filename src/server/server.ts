@@ -43,7 +43,11 @@ export function createServer(customDb: IDatabase = db): Promise<ServerInstance> 
             });
           });
           if (customDb.close) {
-            await customDb.close();
+            try {
+              await customDb.close();
+            } catch {
+              // Safe no-op if database connection was already severed
+            }
           }
         },
         db: customDb

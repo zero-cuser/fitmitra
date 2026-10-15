@@ -51,6 +51,7 @@ export interface PostgresConfig {
 export class PostgresDatabase implements IDatabase {
   private pool: pg.Pool;
   private readonly sanitizedEndpoint: string;
+  private isClosed = false;
 
   constructor(config?: PostgresConfig | string) {
     if (typeof config === 'object' && config?.pool) {
@@ -124,6 +125,7 @@ export class PostgresDatabase implements IDatabase {
   }
 
   async ping(): Promise<boolean> {
+    if (this.isClosed) return false;
     try {
       const res = await this.pool.query('SELECT 1 as healthy');
       return Array.isArray(res?.rows) && res.rows.length > 0;
@@ -141,7 +143,13 @@ export class PostgresDatabase implements IDatabase {
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    if (this.isClosed) return;
+    this.isClosed = true;
+    try {
+      await this.pool.end();
+    } catch {
+      // Safe no-op if pool was already terminated
+    }
   }
 
   async reset(): Promise<void> {
@@ -520,7 +528,7 @@ export class PostgresDatabase implements IDatabase {
     entityType: 'workout' | 'challenge',
     entityId: string
   ): Promise<void> {
-    const id = `tomb_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+    const id = crypto.randomUUID();
     const now = new Date().toISOString();
 
     await this.pool.query(
