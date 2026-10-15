@@ -144,7 +144,7 @@ async function runDrill() {
     const dumpRes = spawnSync(
       'pg_dump',
       ['-d', SOURCE_DB_URL, '-Fc', '-f', dumpFilePath],
-      { stdio: 'pipe' }
+      { stdio: 'pipe', env: { ...process.env } }
     );
 
     if (dumpRes.status !== 0) {
@@ -157,10 +157,8 @@ async function runDrill() {
     // Step 3: Create Separate Empty Target Database for Restoration
     // -------------------------------------------------------------------------
     console.log(`[Step 3/6] Provisioning separate restore database (${restoreDbName})...`);
-    // Connect to maintenance DB (postgres) to create database
-    const maintenanceUrl = new URL(SOURCE_DB_URL);
-    maintenanceUrl.pathname = '/postgres';
-    const maintenanceDb = new PostgresDatabase({ connectionString: maintenanceUrl.toString() });
+    // Connect to source DB to create restore database
+    const maintenanceDb = new PostgresDatabase({ connectionString: SOURCE_DB_URL });
 
     try {
       await maintenanceDb.query(`DROP DATABASE IF EXISTS ${restoreDbName};`);
@@ -177,7 +175,7 @@ async function runDrill() {
     const restoreRes = spawnSync(
       'pg_restore',
       ['--clean', '--if-exists', '--no-owner', '--no-privileges', '-d', restoreUrl.toString(), dumpFilePath],
-      { stdio: 'pipe' }
+      { stdio: 'pipe', env: { ...process.env } }
     );
 
     // Note: pg_restore may return 0 or 1 with warnings (e.g. drop if exists on empty db).
@@ -240,7 +238,7 @@ async function runDrill() {
     // Step 6: Safe Cleanup of Temporary Artifacts
     // -------------------------------------------------------------------------
     console.log('[Step 6/6] Cleaning up drill database and dump file...');
-    const cleanupMaintenanceDb = new PostgresDatabase({ connectionString: maintenanceUrl.toString() });
+    const cleanupMaintenanceDb = new PostgresDatabase({ connectionString: SOURCE_DB_URL });
     try {
       await cleanupMaintenanceDb.query(`DROP DATABASE IF EXISTS ${restoreDbName};`);
       console.log(`✓ Restore database '${restoreDbName}' dropped.`);

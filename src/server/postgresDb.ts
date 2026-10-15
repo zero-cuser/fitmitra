@@ -590,11 +590,22 @@ export class PostgresDatabase implements IDatabase {
         throw new Error('PermissionDenied: Cannot update challenge progress for another account.');
       }
 
+      const rawDays = Array.isArray(existing.completed_days)
+        ? existing.completed_days
+        : typeof existing.completed_days === 'string'
+        ? JSON.parse(existing.completed_days)
+        : [];
+      const rawActs = Array.isArray(existing.processed_activity_ids)
+        ? existing.processed_activity_ids
+        : typeof existing.processed_activity_ids === 'string'
+        ? JSON.parse(existing.processed_activity_ids)
+        : [];
+
       const mergedDays = Array.from(
-        new Set([...(existing.completed_days || []), ...(challenge.completedDays || [])])
+        new Set([...rawDays, ...(challenge.completedDays || [])])
       );
       const mergedActivities = Array.from(
-        new Set([...(existing.processed_activity_ids || []), ...(challenge.processedActivityIds || [])])
+        new Set([...rawActs, ...(challenge.processedActivityIds || [])])
       );
       const maxValue = Math.max(Number(existing.current_value) || 0, challenge.currentValue);
       const isCompleted =
@@ -617,9 +628,9 @@ export class PostgresDatabase implements IDatabase {
           challenge.id,
           maxValue,
           challenge.targetValue,
-          mergedDays,
+          JSON.stringify(mergedDays),
           challenge.completedSessions,
-          mergedActivities,
+          JSON.stringify(mergedActivities),
           isCompleted,
           completedAt,
           challenge.schemaVersion,
@@ -660,9 +671,9 @@ export class PostgresDatabase implements IDatabase {
         challenge.joinedAt || now,
         challenge.currentValue,
         challenge.targetValue,
-        challenge.completedDays || [],
+        JSON.stringify(challenge.completedDays || []),
         challenge.completedSessions || 0,
-        challenge.processedActivityIds || [],
+        JSON.stringify(challenge.processedActivityIds || []),
         challenge.completed || false,
         challenge.completedAt || null,
         challenge.schemaVersion || 1,
@@ -702,9 +713,16 @@ export class PostgresDatabase implements IDatabase {
     return res.rows.map((r: any) => ({
       ...r,
       currentValue: Number(r.currentValue),
-      targetValue: Number(r.targetValue),
-      completedDays: r.completedDays || [],
-      processedActivityIds: r.processedActivityIds || [],
+      completedDays: Array.isArray(r.completedDays)
+        ? r.completedDays
+        : typeof r.completedDays === 'string'
+        ? JSON.parse(r.completedDays)
+        : [],
+      processedActivityIds: Array.isArray(r.processedActivityIds)
+        ? r.processedActivityIds
+        : typeof r.processedActivityIds === 'string'
+        ? JSON.parse(r.processedActivityIds)
+        : [],
       joinedAt: new Date(r.joinedAt).toISOString(),
       completedAt: r.completedAt ? new Date(r.completedAt).toISOString() : undefined,
       updatedAt: new Date(r.updatedAt).toISOString()

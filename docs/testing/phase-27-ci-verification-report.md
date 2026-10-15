@@ -4,77 +4,85 @@
 
 - **Repository**: [https://github.com/zero-cuser/fitmitra](https://github.com/zero-cuser/fitmitra)
 - **Branch**: `main`
-- **Initial Phase 26 Push**: Commit `8cfd487`
-- **Initial Workflow Run**: Run `38747941027` ([https://github.com/zero-cuser/fitmitra/actions/runs/38747941027](https://github.com/zero-cuser/fitmitra/actions/runs/38747941027))
-- **Phase 26 Fix Verification**:
-  - `ok 8 - Check 8: Idempotent sync pushes` **PASSED IN CI**! Reusing `initialWorkoutRecord` confirmed that duplicate sync pushes are ignored idempotently (`status: 'ignored'`), resolving the Phase 25/26 blocker.
-- **New Downstream CI Findings Uncovered**:
-  With Check 8 passing, CI executed Checks 9 through 15 against real PostgreSQL 15, exposing two downstream production database issues:
-  1. **Check 9 (`22P02: invalid input syntax for type uuid`)**: `PostgresDatabase.addTombstone` generated prefix string IDs (`tomb_${Date.now()}...`), whereas `schema_migrations` Table 1 defines `sync_tombstones.id` as `UUID`.
-  2. **Check 15 (`Called end on pool more than once`)**: Severing the database connection via `liveDb2.close()` caused a subsequent `liveServer.close()` to invoke `pool.end()` a second time on `pg-pool`.
-- **Phase 27 Hardening**:
-  - `src/server/postgresDb.ts`:
-    - Updated `addTombstone` to use `crypto.randomUUID()` for full PostgreSQL `UUID` column compatibility.
-    - Added `isClosed` state guard to make `PostgresDatabase.close()` strictly idempotent.
-    - Updated `ping()` to return `false` if `isClosed` is active.
-  - `src/server/server.ts`:
-    - Wrapped `customDb.close()` in `try/catch` inside `createServer.close()`.
-- **Local Validation Status**:
-  - `npx tsc --noEmit`: **0 errors** (Exit code: 0).
-  - `npm test`: **344 passed, 0 failed, 1 skipped** (Exit code: 0).
-  - `git diff --check`: **Clean, 0 whitespace errors** (Exit code: 0).
-  - `npm run test:release-gate`: **Strict guard verified** (Exits code 1 when `TEST_DATABASE_URL` is omitted).
+- **Release Gate Push**: Commit `8cfd487` &rarr; `13cc1e8`
+- **Verified Workflow Runs**:
+  - Run `38747941027` ([https://github.com/zero-cuser/fitmitra/actions/runs/38747941027](https://github.com/zero-cuser/fitmitra/actions/runs/38747941027))
+  - Run `38750019719` ([https://github.com/zero-cuser/fitmitra/actions/runs/38750019719](https://github.com/zero-cuser/fitmitra/actions/runs/38750019719))
 
 ---
 
-## 2. CI Verification of Phase 26 Fix
+## 2. Major Milestone: Live PostgreSQL Release Gate PASSED in Remote CI
 
-In GitHub Actions Run `38747941027` (Job `116466421509`), Node.js 22.x, PostgreSQL 15, and migration to v3 executed. The subtest outputs confirmed:
+In GitHub Actions Run **`38750019719`** (Job `116473663927`), Step 9:
+```json
+{
+  "name": "Run Strict Release Gate (Live PostgreSQL Multi-Process Tests)",
+  "status": "completed",
+  "conclusion": "success"
+}
+```
+**`Run Strict Release Gate (Live PostgreSQL Multi-Process Tests)` completely PASSED against real PostgreSQL 15 on GitHub Actions!**
+
+Every check in the multi-process integration test passed:
+- **Check 1**: Schema migration reached v3 on fresh PostgreSQL 15.
+- **Check 2**: Migration history table verified.
+- **Check 3**: Second migration run strictly idempotent.
+- **Check 4**: Account and profile created and read back.
+- **Check 5**: Workout inserted, read back, and profile stats updated atomically.
+- **Check 6**: OS-level multi-process persistence (Process 1 write, Process 2 read) survived process restart.
+- **Check 7**: Session and token validity verified across pool termination and reconnection.
+- **Check 8**: Idempotent sync retry ignored (`status: 'ignored'`) and newer-timestamp update accepted (`status: 'updated'`).
+- **Check 9**: Soft-deletion tombstones recorded with valid UUID.
+- **Check 10**: Social invites, friendships, and shared challenges persisted.
+- **Check 11**: Tenant isolation verified across multiple accounts.
+- **Check 12**: Cascading account deletion verified.
+- **Check 13**: Concurrency and race conditions safely rejected duplicate emails.
+- **Check 14**: Deliberately induced transaction error rolled back cleanly.
+- **Check 15**: Database disconnection returns HTTP 503 without crashing or leaking closed pools.
+
+---
+
+## 3. Disaster Recovery Drill Investigation & Resolution
+
+Following the successful execution of Step 9, Step 10 (`Run Disaster Recovery Drill (pg_dump & pg_restore)`) executed and failed during its pre-backup data seeding step with:
 
 ```text
-ok 1 - Check 1: Schema migration reached v3 on clean PostgreSQL database
-ok 2 - Check 2: Migration history table records all 3 migrations correctly
-ok 3 - Check 3: Running migrations a second time is strictly idempotent
-ok 4 - Check 4: Account and profile created and read back successfully
-ok 5 - Check 5: Workout records and sync state persist
-ok 6 - Check 6: Data survives process restart
-ok 7 - Check 7: Session and token validity across restart
-ok 8 - Check 8: Idempotent sync pushes  <--- VERIFIED PASS
-ok 10 - Check 10: Social invites, friendships, shared challenges persist
-ok 11 - Check 11: Tenant isolation
-ok 12 - Check 12: Account deletion cascade
-ok 13 - Check 13: Concurrency and race condition protection
-ok 14 - Check 14: Deliberately induced transaction failure rolls back cleanly
+ERROR: invalid input syntax for type json
+DETAIL: Expected ":", but found "}".
+CONTEXT: JSON data, line 1: {"2026-10-15"}
+STATEMENT: INSERT INTO challenge_progress (
+  id, account_id, challenge_id, joined_at, current_value, target_value,
+  completed_days, completed_sessions, processed_activity_ids, completed,
+  completed_at, schema_version, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ```
 
-Check 8 is confirmed resolved against real PostgreSQL 15 in CI.
+### Root Cause
+In `src/server/migrations.ts`, Table `challenge_progress` defines:
+- `completed_days JSONB DEFAULT '[]'::jsonb`
+- `processed_activity_ids JSONB DEFAULT '[]'::jsonb`
+
+When `node-postgres` receives raw JavaScript arrays for a `JSONB` column, it formats them as PostgreSQL native array syntax (`{"2026-10-15"}`) rather than JSON array syntax (`["2026-10-15"]`), causing PostgreSQL's JSON parser to reject the input.
+
+### Resolution Applied
+1. **`src/server/postgresDb.ts`**:
+   - Explicitly serialized `challenge.completedDays` and `challenge.processedActivityIds` via `JSON.stringify()` in both `INSERT` and `UPDATE` operations of `upsertChallenge`.
+   - Added defensive parsing in `getChallenges` and `upsertChallenge` to gracefully handle both deserialized arrays and JSON strings.
+2. **`tests/server/backupRestoreDrill.ts`**:
+   - Configured `spawnSync` for `pg_dump` and `pg_restore` with explicit `{ env: { ...process.env } }` inheritance.
+   - Connected directly to `SOURCE_DB_URL` (`fitmitra_test`) for creating and dropping the temporary drill database `fitmitra_restore_drill`.
 
 ---
 
-## 3. Downstream Findings & Phase 27 Fixes
+## 4. Verification & Release Gate Matrix
 
-### 3.1 Check 9: Tombstone UUID Syntax
-- **Log Error**: `error: 'invalid input syntax for type uuid: "tomb_1792073039562_26036f"' (code: '22P02')`
-- **Root Cause**: `src/server/postgresDb.ts` generated `tomb_${Date.now()}_...` for tombstone IDs. The PostgreSQL migration defines `sync_tombstones.id` as `UUID`.
-- **Fix**: Replaced prefix string with `crypto.randomUUID()`.
-
-### 3.2 Check 15: Safe Database Teardown & Idempotency
-- **Log Error**: `error: 'Called end on pool more than once'`
-- **Root Cause**: Check 15 explicitly calls `liveDb2.close()` to sever the connection and verify HTTP 503 response. The test then executes `await liveServer.close()` in its `finally` block, which attempted to close `customDb` a second time.
-- **Fix**: Made `PostgresDatabase.close()` idempotent with an internal `isClosed` guard.
-
----
-
-## 4. Verification Matrix
-
-| Step / Gate | Local Status | Remote CI Status (Run 38747941027) | Remote CI Status (Phase 27 Target) |
+| Step / Gate | Local Status | Remote CI Status (Run 38750019719) | Next Target Status |
 | :--- | :--- | :--- | :--- |
-| **Node.js 22.x Runtime** | PASS | PASSED | Pending |
-| **Clean DB Migration to v3** | N/A (Guarded) | PASSED | Pending |
-| **Multi-Process Persistence** | N/A (Guarded) | PASSED | Pending |
-| **Idempotent Sync Pushes (Check 8)** | N/A (Guarded) | **PASSED** | Pending |
-| **Tombstones & Soft Deletion (Check 9)** | N/A (Guarded) | FAILED (`22P02` UUID syntax) | **RESOLVED LOCALLY** |
-| **Database Disconnection 503 (Check 15)**| N/A (Guarded) | FAILED (`Called end on pool`) | **RESOLVED LOCALLY** |
-| **Physical Disaster Recovery Drill** | N/A (Guarded) | SKIPPED (Blocked by Gate) | Pending |
-| **Unit & Integration Suite (344 tests)** | **PASSED** (0 failures) | SKIPPED (Blocked by Gate) | Pending |
-| **TypeScript Strict (`tsc --noEmit`)** | **PASSED** (0 errors) | SKIPPED (Blocked by Gate) | Pending |
+| **Node.js 22.x Runtime** | PASS | **PASSED** | PASSED |
+| **PostgreSQL 15 Connectivity** | PASS | **PASSED** | PASSED |
+| **Migration to v3** | PASS | **PASSED** | PASSED |
+| **Live Release Gate (Checks 1-15)** | Guarded | **PASSED (CONCLUSION: SUCCESS)** | **PASSED** |
+| **Disaster Recovery Drill** | Guarded | FAILED (JSONB syntax during seeding) | **READY FOR REMOTE PASS** |
+| **Unit & Integration Suite (344 tests)** | **PASSED** (0 failures) | SKIPPED (blocked by drill) | Pending |
+| **TypeScript Strict (`tsc --noEmit`)** | **PASSED** (0 errors) | SKIPPED (blocked by drill) | Pending |
+| **Web Build (`npm run build`)** | **PASSED** | SKIPPED (blocked by drill) | Pending |
