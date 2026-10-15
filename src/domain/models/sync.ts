@@ -96,4 +96,5 @@ export interface AccountDeletionResult {
   remoteDataDeleted: boolean;
   localDataDeleted: boolean;
   accountId: string;
+  error?: string;
 }

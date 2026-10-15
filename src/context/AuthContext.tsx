@@ -383,19 +383,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let result: AccountDeletionResult;
     try {
       result = await authRepo.deleteAccount(password, deleteRemoteDataOnly);
-    } catch {
-      if (!deleteRemoteDataOnly) {
-        wipeAllLocalData();
-      }
-      result = {
-        success: true,
+    } catch (err: any) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to delete account. Please verify password.';
+      return {
+        success: false,
         remoteDataDeleted: false,
-        localDataDeleted: !deleteRemoteDataOnly,
-        accountId: user?.id || 'usr_local'
+        localDataDeleted: false,
+        accountId: user?.id || '',
+        error: errorMessage
       };
     }
-    setUser(null);
-    await disableSync();
+
+    if (result.success) {
+      setUser(null);
+      try {
+        await disableSync();
+      } catch (syncErr: any) {
+        console.error('[AuthContext] Error disabling sync after confirmed deletion:', syncErr);
+        return {
+          ...result,
+          error: 'Remote account deleted, but an error occurred while resetting local sync settings.'
+        };
+      }
+    }
+
     return result;
   };
 

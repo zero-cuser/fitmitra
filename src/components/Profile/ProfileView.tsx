@@ -71,6 +71,7 @@ export const ProfileView: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteRemoteOnly, setDeleteRemoteOnly] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Notification Preferences (persisted in localStorage)
   const [notifications, setNotifications] = useState({
@@ -204,16 +205,28 @@ export const ProfileView: React.FC = () => {
       if (res.success) {
         setShowDeleteModal(false);
         setDeletePassword('');
+        setDeleteError(null);
         setPrivacyFeedback({
-          text: deleteRemoteOnly
+          text: res.error
+            ? res.error
+            : deleteRemoteOnly
             ? 'Remote cloud data deleted successfully. Local device data retained.'
             : 'Account and all data wiped permanently.',
           type: 'success'
         });
         refreshInventory();
+      } else {
+        const errorText = res.error || 'Failed to delete account. Please verify password.';
+        setDeleteError(errorText);
+        setPrivacyFeedback({
+          text: errorText,
+          type: 'danger'
+        });
       }
-    } catch {
-      setPrivacyFeedback({ text: 'Failed to delete account. Please verify password.', type: 'danger' });
+    } catch (err: any) {
+      const errorText = err?.message || 'Failed to delete account. Please verify password.';
+      setDeleteError(errorText);
+      setPrivacyFeedback({ text: errorText, type: 'danger' });
     }
   };
 
@@ -714,7 +727,11 @@ export const ProfileView: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowDeleteModal(true)}
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeletePassword('');
+                    setShowDeleteModal(true);
+                  }}
                   className="text-xs text-danger border-danger/30 hover:bg-danger/10"
                 >
                   Delete Cloud Account
@@ -974,8 +991,23 @@ export const ProfileView: React.FC = () => {
               />
             </div>
 
+            {deleteError && (
+              <div className="p-2.5 rounded-xl bg-danger/10 border border-danger/30 text-danger text-xs font-medium flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-end space-x-2 pt-2">
-              <Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setDeleteError(null);
+                  setDeletePassword('');
+                }}
+              >
                 Cancel
               </Button>
               <Button

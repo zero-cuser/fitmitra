@@ -148,11 +148,41 @@ export class WebRemoteAuthRepository implements IAuthRepository {
         body: JSON.stringify({ password })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
+      let data: any;
+      try {
+        data = await res.json();
+      } catch (parseErr: any) {
         throw new RepositoryError(
-          res.status === 403 ? 'PermissionDenied' : 'Unknown',
-          data.error || 'Account deletion failed.'
+          'ServerError',
+          'Malformed or non-JSON response received from server during account deletion.',
+          parseErr
+        );
+      }
+
+      if (!res.ok || !data || typeof data !== 'object' || data.success !== true) {
+        if (res.status === 403) {
+          throw new RepositoryError(
+            'PermissionDenied',
+            data?.error || 'Password verification failed. Account deletion aborted.'
+          );
+        }
+
+        if (res.status === 404) {
+          const notFoundMsg =
+            data?.error && data.error !== 'Account not found.'
+              ? data.error
+              : 'Account not found or may have already been deleted. If you recently deleted this account, you can use "Wipe All Local Data" to clean this device.';
+          throw new RepositoryError('NotFound', notFoundMsg);
+        }
+
+        const serverErrorMsg =
+          typeof data?.error === 'string' && data.error.trim()
+            ? data.error.trim()
+            : 'Account deletion could not be confirmed by the server.';
+
+        throw new RepositoryError(
+          res.status >= 500 ? 'ServerError' : 'Unknown',
+          serverErrorMsg
         );
       }
 
