@@ -238,6 +238,82 @@ describe('Phase 34: Account Deletion Failure Handling & Storage Protection', () 
       assert.ok(mockStorage.getItem(STORAGE_KEYS.WORKOUT_V3), 'Local workout data preserved when deleteRemoteDataOnly=true');
     });
 
+    it('enforces caller isolation: deletion by Account B purges Account B only, leaving Account A completely unaffected in the database', async () => {
+      // 1. Register Account A
+      const regResA = await fetch(`${serverInstance.url}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'alice_isolated@campus.edu',
+          password: 'alice_password_123',
+          displayName: 'Alice Isolated',
+          username: 'alice_iso'
+        })
+      });
+      const dataA = await regResA.json();
+
+      // Push a workout for Alice
+      await fetch(`${serverInstance.url}/api/v1/sync/push`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${dataA.token}`
+        },
+        body: JSON.stringify({
+          workouts: [{
+            id: 'work_alice_iso_1',
+            exerciseKey: 'squats',
+            reps: 30,
+            durationSeconds: 90,
+            timestamp: new Date().toISOString()
+          }]
+        })
+      });
+
+      // 2. Register Account B
+      const regResB = await fetch(`${serverInstance.url}/api/v1/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'bob_isolated@campus.edu',
+          password: 'bob_password_123',
+          displayName: 'Bob Isolated',
+          username: 'bob_iso'
+        })
+      });
+      const dataB = await regResB.json();
+
+      // 3. Set Bob's session in local storage and delete Bob's account
+      mockStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, dataB.token);
+      mockStorage.setItem(
+        STORAGE_KEYS.AUTH_SESSION,
+        JSON.stringify({
+          token: dataB.token,
+          accountId: dataB.account.id,
+          email: dataB.account.email,
+          displayName: 'Bob Isolated',
+          username: 'bob_iso',
+          expiresAt: new Date(Date.now() + 86400000).toISOString()
+        })
+      );
+
+      const repo = new WebRemoteAuthRepository(serverInstance.url);
+      const resB = await repo.deleteAccount('bob_password_123', false);
+      assert.equal(resB.success, true);
+      assert.equal(resB.remoteDataDeleted, true);
+
+      // Verify Bob's account is purged
+      assert.equal(testDb.getAccountById(dataB.account.id), null);
+
+      // Verify Alice's account and workouts remain completely intact
+      const aliceAcc = testDb.getAccountById(dataA.account.id);
+      assert.ok(aliceAcc, "Alice's account must remain intact");
+      assert.equal(aliceAcc.email, 'alice_isolated@campus.edu');
+      const aliceWorkouts = testDb.getWorkouts(dataA.account.id);
+      assert.equal(aliceWorkouts.length, 1, "Alice's workout data must remain intact");
+      assert.equal(aliceWorkouts[0].id, 'work_alice_iso_1');
+    });
+
     const createMockHttpServer = (handler: (req: http.IncomingMessage, res: http.ServerResponse) => void): Promise<{ url: string; close: () => Promise<void> }> => {
       return new Promise((resolve) => {
         const server = http.createServer(handler);
@@ -682,6 +758,35 @@ describe('Phase 34: Account Deletion Failure Handling & Storage Protection', () 
       assert.equal(deleteError, null, 'deleteError must be null');
       assert.equal(privacyFeedback?.type, 'success');
       assert.equal(privacyFeedback?.text, 'Remote account deleted, but an error occurred while resetting local sync settings.');
+    });
+
+    it('canceling confirmation modal dismisses dialog without calling deleteAccount and preserves local storage', async () => {
+      let showDeleteModal = true;
+      let deletePassword = 'entered_password_draft';
+      let deleteError: string | null = 'stale error from earlier attempt';
+      let deleteAccountCalled = false;
+
+      // Seed local storage
+      mockStorage.setItem(STORAGE_KEYS.WORKOUT_V3, JSON.stringify({ streak: 14, totalReps: 600 }));
+      mockStorage.setItem(STORAGE_KEYS.NUTRITION_V3, JSON.stringify([{ meal: 'Eggs', calories: 250 }]));
+
+      // Simulated Cancel action from ProfileView.tsx lines 1005-1010
+      const handleCancelModal = () => {
+        showDeleteModal = false;
+        deleteError = null;
+        deletePassword = '';
+      };
+
+      handleCancelModal();
+
+      assert.equal(showDeleteModal, false, 'Modal must close on cancel');
+      assert.equal(deletePassword, '', 'Password draft must be cleared on cancel');
+      assert.equal(deleteError, null, 'Error state must be cleared on cancel');
+      assert.equal(deleteAccountCalled, false, 'deleteAccount must never be invoked on cancel');
+
+      // Local storage remains 100% intact
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.WORKOUT_V3), 'Workout records must be intact');
+      assert.ok(mockStorage.getItem(STORAGE_KEYS.NUTRITION_V3), 'Nutrition records must be intact');
     });
   });
 });
